@@ -70,6 +70,11 @@ const OVERRIDES: Record<string, { health: Health; alerts?: Alert[]; spike?: numb
     health: "degraded",
     alerts: [{ id: "al-4", severity: "warning", title: "Consumer group shipping-v2 lagging", since: "2026-11-10T18:55:00Z" }],
   },
+  "hw-fra-a12-07": {
+    health: "degraded",
+    spike: 14,
+    alerts: [{ id: "al-6", severity: "warning", title: "CPU package temperature above 82C, fan 3 degraded", since: "2026-11-10T17:20:00Z" }],
+  },
   "pipe-checkout": {
     health: "healthy",
   },
@@ -126,6 +131,25 @@ export function buildMonitoring(node: GraphNode): MonitoringSnapshot | null {
       metrics = [
         metric(rand, "cpu", "CPU", "%", 35 + rand() * 25, 8, { threshold: 85 }),
         metric(rand, "mem", "Memory", "%", 50 + rand() * 20, 6, { threshold: 90 }),
+      ];
+      break;
+    case "hardware":
+      metrics = [
+        metric(rand, "temp", "CPU temperature", "C", 58 + rand() * 6, 3, { threshold: 82, spike }),
+        metric(rand, "power", "Power draw", "W", 380 + rand() * 80, 25, { threshold: 700 }),
+        metric(rand, "disk", "NVMe wear", "%", 12 + rand() * 6, 0.4),
+      ];
+      break;
+    case "network":
+      metrics = [
+        metric(rand, "tput", "Throughput", "Gbit/s", 6 + rand() * 6, 2, { threshold: 90 }),
+        metric(rand, "loss", "Packet loss", "%", 0.01 + rand() * 0.03, 0.02, { threshold: 1 }),
+      ];
+      break;
+    case "datacenter":
+      metrics = [
+        metric(rand, "pwr", "IT load", "kW", 310 + rand() * 40, 12, { threshold: 440 }),
+        metric(rand, "inlet", "Inlet temperature", "C", 22 + rand() * 1.5, 0.6, { threshold: 27 }),
       ];
       break;
     case "pipeline":

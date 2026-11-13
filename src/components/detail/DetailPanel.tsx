@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CornerDownRight, Crosshair, FileText, Layers, SquareArrowOutUpRight, X } from "lucide-react";
+import { ArrowRight, CornerDownRight, Crosshair, FileText, Layers, Maximize2, SquareArrowOutUpRight, X } from "lucide-react";
 import { getDataSource } from "@/data";
 import { HEALTH_COLOR, LIFECYCLE_LABEL, NODE_KINDS, RELATION_TYPES } from "@/domain/registry";
 import type { GraphNode, Id, Relation } from "@/domain/types";
@@ -150,6 +150,8 @@ function NodeOverview({ node, ancestors, contained }: { node: GraphNode; ancesto
   const openNode = useApp((s) => s.openNode);
   const focusNode = useApp((s) => s.focusNode);
   const drillInto = useApp((s) => s.drillInto);
+  const toggleOpen = useApp((s) => s.toggleOpen);
+  const opened = useApp((s) => s.tabs.find((t) => t.id === s.activeTabId)?.openIds.includes(node.id) ?? false);
   return (
     <div>
       {ancestors.length > 0 && (
@@ -171,6 +173,11 @@ function NodeOverview({ node, ancestors, contained }: { node: GraphNode; ancesto
         <ActionButton onClick={() => void focusNode(node.id)} icon={<Crosshair size={13} />} hint="Same level: show this node and its immediate neighbours">
           Focus here
         </ActionButton>
+        {contained.length > 0 && (
+          <ActionButton onClick={() => toggleOpen(node.id)} icon={<Maximize2 size={13} />} hint="Same level: show what is inside, drawn inside this node in the current view">
+            {opened ? "Close in place" : "Open in place"}
+          </ActionButton>
+        )}
         {contained.length > 0 && (
           <ActionButton onClick={() => void drillInto(node.id)} icon={<CornerDownRight size={13} />} hint="Next level down: show what is inside">
             Go inside ({contained.length})

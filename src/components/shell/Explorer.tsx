@@ -21,10 +21,14 @@ export function Explorer() {
         onClick={() => void openLandscape()}
         className="mb-3 flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] font-medium text-ink hover:bg-panel2"
       >
-        <Home size={14} className="text-muted" /> Landscape
+        <Home size={14} className="text-muted" /> Enterprise
       </button>
-      <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Systems</div>
-      {roots?.map((r) => (
+      <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Organisation</div>
+      {roots?.filter((r) => r.kind !== "system").map((r) => (
+        <TreeNode key={r.id} node={r} depth={0} />
+      ))}
+      <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Software systems</div>
+      {roots?.filter((r) => r.kind === "system").map((r) => (
         <TreeNode key={r.id} node={r} depth={0} />
       ))}
       <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Teams</div>

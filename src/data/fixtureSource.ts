@@ -94,7 +94,7 @@ export class FixtureDataSource implements DataSource {
   }
 
   async getRootNodes() {
-    return NODES.filter((n) => n.parentId === null && n.kind === "system");
+    return NODES.filter((n) => n.parentId === null);
   }
 
   async getNodesByKind(kind: NodeKind) {
@@ -134,7 +134,7 @@ export class FixtureDataSource implements DataSource {
   }
 
   private contentsOf(id: Id | null): GraphNode[] {
-    if (id === null) return NODES.filter((n) => n.parentId === null && n.kind === "system");
+    if (id === null) return NODES.filter((n) => n.parentId === null);
     const node = this.nodes.get(id);
     if (!node) return [];
     if (node.kind === "team") {
@@ -157,6 +157,49 @@ export class FixtureDataSource implements DataSource {
     return [...out];
   }
 
+  private subtreeCache = new Map<Id, Set<Id>>();
+  /** A node and everything contained in it, at any depth. */
+  private subtree(id: Id): Set<Id> {
+    let set = this.subtreeCache.get(id);
+    if (set) return set;
+    set = new Set<Id>([id]);
+    for (const c of this.children.get(id) ?? []) for (const d of this.subtree(c)) set.add(d);
+    this.subtreeCache.set(id, set);
+    return set;
+  }
+
+  /**
+   * Nodes related to `id` only through what it contains. The counterpart is the ancestor of
+   * the far node at the same depth as `id` (or the far node itself if it is shallower), so a
+   * system is matched with systems and a service with services.
+   */
+  private liftedCounterparts(id: Id, hidden: Set<string>): Id[] {
+    const sub = this.subtree(id);
+    const own = this.chainOf(id);
+    const depth = own.length - 1;
+    const out = new Set<Id>();
+    for (const d of sub) {
+      if (d === id) continue;
+      for (const r of [...(this.relsBySource.get(d) ?? []), ...(this.relsByTarget.get(d) ?? [])]) {
+        if (hidden.has(r.type)) continue;
+        const other = r.sourceId === d ? r.targetId : r.sourceId;
+        if (sub.has(other)) continue;
+        const oc = this.chainOf(other);
+        const cp = oc[Math.min(depth, oc.length - 1)];
+        if (!cp || own.includes(cp) || sub.has(cp)) continue;
+        out.add(cp);
+      }
+    }
+    return [...out];
+  }
+
+  /** Direct neighbours, plus (optionally) those reached through contents. */
+  private neighboursOf(id: Id, hidden: Set<string>, lifted: boolean): Id[] {
+    const direct = this.relationNeighbours(id, hidden);
+    if (!lifted) return direct;
+    return [...new Set([...direct, ...this.liftedCounterparts(id, hidden)])];
+  }
+
   /** Containment chain from the top-most ancestor down to the node itself. */
   private chainOf(id: Id): Id[] {
     const chain: Id[] = [];
@@ -173,6 +216,7 @@ export class FixtureDataSource implements DataSource {
     const MAX_GHOSTS = 14;
     const hidden = new Set<string>(q.hiddenRelationTypes ?? []);
     const showContainment = q.showContainment ?? true;
+    const showLifted = q.showLifted ?? true;
     const rootId = q.rootId;
 
     /* 1. Decide which nodes are "members" of this view. */
@@ -187,30 +231,57 @@ export class FixtureDataSource implements DataSource {
         const cur = queue.shift()!;
         const d = dist.get(cur)!;
         if (d >= Math.max(1, q.radius)) continue;
-        for (const nb of this.relationNeighbours(cur, hidden)) {
+        for (const nb of this.neighboursOf(cur, hidden, showLifted)) {
           if (!dist.has(nb)) {
             dist.set(nb, d + 1);
             queue.push(nb);
           }
         }
       }
+      // Stacked expansions: each expanded node pulls in its own neighbours.
+      for (const ex of q.expandedIds ?? []) {
+        if (!dist.has(ex)) continue;
+        for (const nb of this.neighboursOf(ex, hidden, showLifted)) if (!dist.has(nb)) dist.set(nb, (dist.get(ex) ?? 0) + 1);
+      }
       members = [...dist.keys()];
-      if (members.length > MAX_AROUND) {
-        truncated = members.length - MAX_AROUND;
-        members = members.slice(0, MAX_AROUND);
+      const cap = MAX_AROUND + 12 * (q.expandedIds?.length ?? 0);
+      if (members.length > cap) {
+        truncated = members.length - cap;
+        members = members.slice(0, cap);
       }
     }
+    // Nodes opened in place bring their contents into the same view, nested inside them.
+    const openSet = new Set<Id>(q.openIds ?? []);
+    const containerOf = new Map<Id, Id>();
+    const have = new Set<Id>(members);
+    const addContents = (id: Id, depth: number) => {
+      if (depth > 3) return;
+      for (const c of this.contentsOf(id)) {
+        if (have.has(c.id)) continue;
+        have.add(c.id);
+        members.push(c.id);
+        containerOf.set(c.id, id);
+        if (openSet.has(c.id)) addContents(c.id, depth + 1);
+      }
+    };
+    for (const id of [...members]) if (openSet.has(id)) addContents(id, 1);
     const memberSet = new Set(members);
 
     /* 2. Ghosts: outside nodes the contents connect to (inside mode only). */
     const ghostSet = new Set<Id>();
-    if (q.mode === "inside" && q.showExternal && rootId && this.nodes.get(rootId)?.kind !== "team") {
+    const expanded = new Set<Id>((q.expandedIds ?? []).filter((id) => memberSet.has(id)));
+    if (q.mode === "inside" && (q.showExternal || expanded.size > 0) && rootId && this.nodes.get(rootId)?.kind !== "team") {
       const rootChain = this.chainOf(rootId);
+      const maxGhosts = MAX_GHOSTS + 8 * expanded.size;
       for (const r of RELATIONS) {
         if (hidden.has(r.type)) continue;
-        const sIn = this.liftTo(r.sourceId, memberSet) !== undefined;
-        const tIn = this.liftTo(r.targetId, memberSet) !== undefined;
+        const ls = this.liftTo(r.sourceId, memberSet);
+        const lt = this.liftTo(r.targetId, memberSet);
+        const sIn = ls !== undefined;
+        const tIn = lt !== undefined;
         if (sIn === tIn) continue;
+        // Without "Outside links", only expanded nodes reveal their outside neighbours.
+        if (!q.showExternal && !expanded.has((sIn ? ls : lt) as Id)) continue;
         const outside = sIn ? r.targetId : r.sourceId;
         const oc = this.chainOf(outside);
         let i = 0;
@@ -218,7 +289,7 @@ export class FixtureDataSource implements DataSource {
         if (i >= oc.length) continue; // outside endpoint is an ancestor of the root
         if (i >= rootChain.length) continue; // endpoint lives inside the root
         const ghost = oc[i];
-        if (ghost !== rootId && !memberSet.has(ghost) && ghostSet.size < MAX_GHOSTS) ghostSet.add(ghost);
+        if (ghost !== rootId && !memberSet.has(ghost) && ghostSet.size < maxGhosts) ghostSet.add(ghost);
       }
     }
     const visible = new Set<Id>([...memberSet, ...ghostSet]);
@@ -238,7 +309,7 @@ export class FixtureDataSource implements DataSource {
     }
 
     /* 4. Lift relations between deeper nodes up to the visible level (inside mode). */
-    if (q.mode === "inside") {
+    if (q.mode === "inside" || showLifted) {
       const lifted = new Map<string, { s: Id; t: Id; via: Relation[] }>();
       for (const r of RELATIONS) {
         if (hidden.has(r.type) || seen.has(r.id)) continue;
@@ -276,7 +347,7 @@ export class FixtureDataSource implements DataSource {
     if (showContainment) {
       for (const id of memberSet) {
         const n = this.nodes.get(id)!;
-        if (n.parentId && memberSet.has(n.parentId)) containment.push({ parentId: n.parentId, childId: id });
+        if (n.parentId && memberSet.has(n.parentId) && containerOf.get(id) !== n.parentId) containment.push({ parentId: n.parentId, childId: id });
       }
     }
 
@@ -287,7 +358,7 @@ export class FixtureDataSource implements DataSource {
     const nodes: NodeView[] = ordered.map((id) => {
       const n = this.nodes.get(id)!;
       let externalCount = 0;
-      for (const nb of this.relationNeighbours(id, hidden)) if (!covered(nb)) externalCount++;
+      for (const nb of this.neighboursOf(id, hidden, showLifted && q.mode === "around")) if (!covered(nb)) externalCount++;
       return {
         ...n,
         role: ghostSet.has(id) ? "ghost" : q.mode === "around" && id === rootId ? "root" : "member",
@@ -295,6 +366,8 @@ export class FixtureDataSource implements DataSource {
         childCount: this.contentsOf(id).length,
         externalCount: ghostSet.has(id) ? 0 : externalCount,
         details: this.detailsOf(n),
+        containerId: containerOf.get(id) ?? null,
+        open: openSet.has(id) && memberSet.has(id) && this.contentsOf(id).length > 0,
       };
     });
     return { nodes, relations, containment, truncated };
@@ -333,8 +406,7 @@ export class FixtureDataSource implements DataSource {
   private healthOf(n: GraphNode): Health {
     const snap = this.monitoring.get(n.id);
     if (snap) return snap.health;
-    if (n.kind !== "system") return "unknown";
-    // Systems roll up the worst health of everything they contain.
+    // Anything that contains other nodes rolls up the worst health inside it.
     let worst: Health = "unknown";
     const stack = [...(this.children.get(n.id) ?? [])];
     while (stack.length) {

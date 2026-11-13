@@ -15,15 +15,24 @@ import type {
 } from "@/domain/types";
 
 export interface ScopeQuery {
-  /** Null with mode "inside" is the landscape (all top-level systems). */
+  /** Null with mode "inside" is the landscape (everything at the top of the enterprise). */
   rootId: Id | null;
   mode: ScopeMode;
   /** Relation hops to include in "around" mode. */
   radius: number;
   hiddenRelationTypes?: RelationType[];
   showContainment?: boolean;
+  /** Also follow relations that only exist between what nodes contain (default true). */
+  showLifted?: boolean;
   /** In "inside" mode, also draw the outside nodes the contents connect to. */
   showExternal?: boolean;
+  /**
+   * Nodes the user expanded in place. Each adds its relation neighbours to the
+   * view. Expansions stack: opening one never closes another.
+   */
+  expandedIds?: Id[];
+  /** Nodes opened in place: they show their contents inside themselves, without changing level. */
+  openIds?: Id[];
 }
 
 /**

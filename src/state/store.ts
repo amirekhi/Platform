@@ -4,6 +4,9 @@ import { create } from "zustand";
 import { getDataSource } from "@/data";
 import type { Id, RelationType, ScopeMode } from "@/domain/types";
 
+/** How much each node and relation draws: by zoom (auto) or fixed. */
+export type DetailMode = "auto" | "overview" | "standard" | "full";
+
 export type Selection = { type: "node" | "relation"; id: Id } | null;
 export type NodeDetailTab = "overview" | "docs" | "diagrams" | "monitoring" | "relations";
 export type RelationDetailTab = "overview" | "docs" | "diagrams";
@@ -25,15 +28,40 @@ export interface Tab {
   radius: 1 | 2 | 3;
   hiddenRelationTypes: RelationType[];
   showContainment: boolean;
+  /** Follow and draw relations that exist between deeper nodes (lifted to this level). */
+  showLifted: boolean;
   /** In "inside" views, also draw the outside nodes the contents connect to. */
   showExternal: boolean;
+  detailMode: DetailMode;
   /** Nodes whose details are expanded in place (shown as circles). */
   detailsOpen: Id[];
+  /** Nodes expanded in place to show their neighbours. Expansions stack. */
+  expandedIds: Id[];
+  /** Nodes opened in place (their contents drawn inside them). */
+  openIds: Id[];
+  /** Nodes whose relations are emphasised. Everything else recedes. */
+  highlightIds: Id[];
+  /** True when the highlight came from expanding (it then goes away on the next selection). */
+  highlightTransient: boolean;
   selection: Selection;
   detailTab: DetailTab;
   /** Document to open in the Docs tab (set by search results). */
   docId: Id | null;
 }
+
+/** What just happened on the canvas, so it can animate to match. */
+export interface Motion {
+  kind: "enter" | "exit" | "focus" | "expand" | "open" | "details" | "change";
+  /** "out" is the lead-in (zoom into the node) before the new view is committed. */
+  phase: "out" | "in";
+  /** The node the motion is about (where new nodes grow from). */
+  anchorId: Id | null;
+  tabId: string;
+  seq: number;
+}
+
+export const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 export const currentScope = (t: Tab): Scope => t.path[t.path.length - 1];
 export const tabTitle = (t: Tab): string => currentScope(t).label;
@@ -51,6 +79,9 @@ interface AppState {
   searchOpen: boolean;
   explorerOpen: boolean;
   detailOpen: boolean;
+  motion: Motion | null;
+  /** Zoom at which the current view fits the screen. Auto detail is measured relative to it. */
+  fitZoom: number | null;
 
   setSearchOpen: (open: boolean) => void;
   toggleExplorer: () => void;
@@ -75,11 +106,22 @@ interface AppState {
   setDocId: (id: Id | null) => void;
 
   toggleDetails: (id: Id) => void;
+  /** Show or hide a node's neighbours without touching any other expansion. */
+  toggleExpanded: (id: Id) => void;
+  /** Open a node in place: show its contents inside it without changing level. */
+  toggleOpen: (id: Id) => void;
+  closeAllOpen: () => void;
+  collapseAllExpanded: () => void;
+  /** Turn one node's relation highlight on or off. Manual highlights stack and persist. */
+  toggleHighlight: (id: Id) => void;
+  clearHighlights: () => void;
   setDetailsFor: (ids: Id[], open: boolean) => void;
   setRadius: (r: 1 | 2 | 3) => void;
   toggleRelationType: (type: RelationType) => void;
   setShowContainment: (show: boolean) => void;
+  setShowLifted: (show: boolean) => void;
   setShowExternal: (show: boolean) => void;
+  setDetailMode: (mode: DetailMode) => void;
   resetTab: () => void;
 }
 
@@ -93,8 +135,14 @@ function makeTab(path: Scope[], partial: Partial<Tab> = {}): Tab {
     radius: 1,
     hiddenRelationTypes: [],
     showContainment: true,
+    showLifted: true,
     showExternal: false,
+    detailMode: "auto",
     detailsOpen: [],
+    expandedIds: [],
+    openIds: [],
+    highlightIds: [],
+    highlightTransient: false,
     selection: null,
     detailTab: "overview",
     docId: null,
@@ -102,12 +150,26 @@ function makeTab(path: Scope[], partial: Partial<Tab> = {}): Tab {
   };
 }
 
-const LANDSCAPE: Scope = { rootId: null, mode: "inside", label: "Landscape" };
+const LANDSCAPE: Scope = { rootId: null, mode: "inside", label: "Enterprise" };
 
 const patch = (s: AppState, id: string, p: Partial<Tab>): Pick<AppState, "tabs"> => ({
   tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...p } : t)),
 });
 const patchActive = (s: AppState, p: Partial<Tab>) => patch(s, s.activeTabId, p);
+
+let motionSeq = 0;
+let motionTimer: ReturnType<typeof setTimeout> | undefined;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Record a motion and clear it once it has had time to play. */
+function announce(m: Omit<Motion, "seq">) {
+  const seq = ++motionSeq;
+  useApp.setState({ motion: { ...m, seq } });
+  clearTimeout(motionTimer);
+  motionTimer = setTimeout(() => {
+    if (useApp.getState().motion?.seq === seq) useApp.setState({ motion: null });
+  }, 900);
+}
 
 const sameScope = (a: Scope, b: Scope) => a.rootId === b.rootId && a.mode === b.mode;
 
@@ -121,6 +183,8 @@ export const useApp = create<AppState>((set, get) => ({
   searchOpen: false,
   explorerOpen: true,
   detailOpen: true,
+  motion: null,
+  fitZoom: null,
 
   setSearchOpen: (open) => set({ searchOpen: open }),
   toggleExplorer: () => set((s) => ({ explorerOpen: !s.explorerOpen })),
@@ -154,10 +218,11 @@ export const useApp = create<AppState>((set, get) => ({
       detailTab: opts.detailTab ?? "overview",
       docId: opts.docId ?? null,
     } as const;
+    const fresh = { expandedIds: [] as Id[], openIds: [] as Id[], highlightIds: [] as Id[], highlightTransient: false };
 
     const existing = opts.newTab ? undefined : get().tabs.find((t) => sameScope(currentScope(t), scope));
     if (existing) {
-      set((s) => ({ ...patch(s, existing.id, apply), activeTabId: existing.id, detailOpen: true }));
+      set((s) => ({ ...patch(s, existing.id, { ...apply, ...fresh }), activeTabId: existing.id, detailOpen: true }));
       return;
     }
     const tab = makeTab([scope], apply);
@@ -172,9 +237,12 @@ export const useApp = create<AppState>((set, get) => ({
     const scope: Scope = { rootId: id, mode: "around", label };
     // Re-focusing the node already in view just selects it.
     const path = sameScope(currentScope(tab), scope) ? tab.path : [...tab.path, scope];
+    if (path !== tab.path) announce({ kind: "focus", phase: "in", anchorId: id, tabId: tab.id });
     set((s) => ({
       ...patch(s, tab.id, {
         path,
+        expandedIds: path === tab.path ? tab.expandedIds : [],
+        openIds: path === tab.path ? tab.openIds : [],
         selection: opts.selection ?? { type: "node", id },
         detailTab: opts.detailTab ?? "overview",
         docId: opts.docId ?? null,
@@ -189,9 +257,26 @@ export const useApp = create<AppState>((set, get) => ({
     const tab = get().tabs.find((t) => t.id === get().activeTabId);
     if (!tab) return;
     const scope: Scope = { rootId: id, mode: "inside", label };
-    const path = sameScope(currentScope(tab), scope) ? tab.path : [...tab.path, scope];
+    if (sameScope(currentScope(tab), scope)) return;
+    // Lead-in: zoom into the node while the rest fades, then swap the view.
+    if (!prefersReducedMotion()) {
+      announce({ kind: "enter", phase: "out", anchorId: id, tabId: tab.id });
+      await sleep(380);
+    }
+    const now = get().tabs.find((t) => t.id === tab.id);
+    if (!now) return;
+    announce({ kind: "enter", phase: "in", anchorId: id, tabId: tab.id });
     set((s) =>
-      patch(s, tab.id, { path, selection: { type: "node", id }, detailTab: "overview", docId: null }),
+      patch(s, tab.id, {
+        path: [...now.path, scope],
+        expandedIds: [],
+        openIds: [],
+        highlightIds: [],
+        highlightTransient: false,
+        selection: { type: "node", id },
+        detailTab: "overview",
+        docId: null,
+      }),
     );
   },
 
@@ -201,8 +286,13 @@ export const useApp = create<AppState>((set, get) => ({
       if (!tab || index < 0 || index >= tab.path.length - 1) return s;
       const path = tab.path.slice(0, index + 1);
       const scope = path[path.length - 1];
+        announce({ kind: "exit", phase: "in", anchorId: tab.path[tab.path.length - 1].rootId, tabId: tab.id });
       return patchActive(s, {
         path,
+        expandedIds: [],
+        openIds: [],
+        highlightIds: [],
+        highlightTransient: false,
         selection: scope.rootId ? { type: "node", id: scope.rootId } : null,
         detailTab: "overview",
         docId: null,
@@ -215,10 +305,20 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   select: (selection, detailTab) =>
-    set((s) => ({
-      ...patchActive(s, { selection, detailTab: detailTab ?? "overview", docId: null }),
-      detailOpen: selection ? true : s.detailOpen,
-    })),
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      // A highlight made by expanding fades once something else is selected; manual ones stay.
+      const keep = !tab?.highlightTransient || (selection?.type === "node" && tab.highlightIds.includes(selection.id));
+      return {
+        ...patchActive(s, {
+          selection,
+          detailTab: detailTab ?? "overview",
+          docId: null,
+          ...(keep ? {} : { highlightIds: [], highlightTransient: false }),
+        }),
+        detailOpen: selection ? true : s.detailOpen,
+      };
+    }),
 
   setDetailTab: (tab) => set((s) => patchActive(s, { detailTab: tab, docId: null })),
   setDocId: (id) => set((s) => patchActive(s, { docId: id })),
@@ -230,7 +330,58 @@ export const useApp = create<AppState>((set, get) => ({
       const open = tab.detailsOpen.includes(id)
         ? tab.detailsOpen.filter((x) => x !== id)
         : [...tab.detailsOpen, id];
+      announce({ kind: "details", phase: "in", anchorId: id, tabId: tab.id });
       return patchActive(s, { detailsOpen: open });
+    }),
+
+  toggleExpanded: (id) =>
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      if (!tab) return s;
+      const on = tab.expandedIds.includes(id);
+      announce({ kind: "expand", phase: "in", anchorId: id, tabId: tab.id });
+      // Expanding makes this node the only highlighted one (so the user keeps their place
+      // while the layout moves). Collapsing just drops its own highlight.
+      return patchActive(s, {
+        expandedIds: on ? tab.expandedIds.filter((x) => x !== id) : [...tab.expandedIds, id],
+        highlightIds: on ? tab.highlightIds.filter((x) => x !== id) : [id],
+        highlightTransient: on ? tab.highlightTransient && tab.highlightIds.some((x) => x !== id) : true,
+      });
+    }),
+
+  toggleOpen: (id) =>
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      if (!tab) return s;
+      const on = tab.openIds.includes(id);
+      announce({ kind: "open", phase: "in", anchorId: id, tabId: tab.id });
+      return patchActive(s, { openIds: on ? tab.openIds.filter((x) => x !== id) : [...tab.openIds, id] });
+    }),
+
+  closeAllOpen: () => set((s) => patchActive(s, { openIds: [] })),
+
+  toggleHighlight: (id) =>
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      if (!tab) return s;
+      const on = tab.highlightIds.includes(id);
+      announce({ kind: "change", phase: "in", anchorId: null, tabId: tab.id });
+      // Turning one on by hand makes the whole set persistent.
+      return patchActive(s, {
+        highlightIds: on ? tab.highlightIds.filter((x) => x !== id) : [...tab.highlightIds, id],
+        highlightTransient: false,
+      });
+    }),
+
+  clearHighlights: () => set((s) => patchActive(s, { highlightIds: [], highlightTransient: false })),
+
+  collapseAllExpanded: () =>
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      return patchActive(s, {
+        expandedIds: [],
+        ...(tab?.highlightTransient ? { highlightIds: [], highlightTransient: false } : {}),
+      });
     }),
 
   setDetailsFor: (ids, open) =>
@@ -241,7 +392,11 @@ export const useApp = create<AppState>((set, get) => ({
       return patchActive(s, { detailsOpen: open ? [...keep, ...ids] : keep });
     }),
 
-  setRadius: (radius) => set((s) => patchActive(s, { radius })),
+  setRadius: (radius) =>
+    set((s) => {
+      announce({ kind: "change", phase: "in", anchorId: null, tabId: s.activeTabId });
+      return patchActive(s, { radius });
+    }),
 
   toggleRelationType: (type) =>
     set((s) => {
@@ -254,7 +409,9 @@ export const useApp = create<AppState>((set, get) => ({
     }),
 
   setShowContainment: (show) => set((s) => patchActive(s, { showContainment: show })),
+  setShowLifted: (show) => set((s) => patchActive(s, { showLifted: show })),
   setShowExternal: (show) => set((s) => patchActive(s, { showExternal: show })),
+  setDetailMode: (mode) => set((s) => patchActive(s, { detailMode: mode })),
 
   resetTab: () =>
     set((s) => {
@@ -266,8 +423,13 @@ export const useApp = create<AppState>((set, get) => ({
         radius: 1,
         hiddenRelationTypes: [],
         showContainment: true,
+        showLifted: true,
         showExternal: false,
         detailsOpen: [],
+        expandedIds: [],
+        openIds: [],
+        highlightIds: [],
+        highlightTransient: false,
         selection: first.rootId ? { type: "node", id: first.rootId } : null,
         detailTab: "overview",
         docId: null,

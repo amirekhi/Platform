@@ -30,7 +30,7 @@ function DetailBubbleImpl({ data }: NodeProps<DetailFlowNode>) {
   const select = useApp((s) => s.select);
 
   return (
-    <div style={{ width: DETAIL_W, height: DETAIL_H }} className="flex flex-col items-center" data-detail={cat.key}>
+    <div style={{ width: DETAIL_W, height: DETAIL_H }} className="bubble-pop flex flex-col items-center" data-detail={cat.key}>
       <Handle id="t" type="target" position={Position.Top} />
       <Handle id="b" type="target" position={Position.Bottom} />
       <button

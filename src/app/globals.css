@@ -211,3 +211,29 @@ mark.hl {
   border-radius: 2px;
   padding: 0 1px;
 }
+
+/* ---------- Motion: expanding, entering, leaving ---------- */
+@keyframes go-in { from { opacity: 0; transform: scale(1.22); } to { opacity: 1; transform: scale(1); } }
+@keyframes go-out { from { opacity: 0; transform: scale(0.84); } to { opacity: 1; transform: scale(1); } }
+@keyframes go-focus { from { opacity: 0.2; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes node-pop { from { opacity: 0; transform: scale(0.35); } to { opacity: 1; transform: scale(1); } }
+@keyframes bubble-pop { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
+
+.anim-enter { animation: go-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-exit { animation: go-out 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-focus { animation: go-focus 360ms ease-out both; }
+.node-pop { animation: node-pop 420ms cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+.bubble-pop { animation: bubble-pop 320ms cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+.motion-lead .react-flow__edge,
+.motion-lead .react-flow__minimap { opacity: 0; transition: opacity 260ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-enter, .anim-exit, .anim-focus, .node-pop, .bubble-pop { animation: none; }
+  .motion-lead .react-flow__edge { transition: none; }
+}
+
+/* Nodes opened in place */
+@keyframes box-grow { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
+.box-grow { animation: box-grow 380ms cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: 20% 30%; }
+.react-flow__node.is-box { transition: width 380ms cubic-bezier(0.16, 1, 0.3, 1), height 380ms cubic-bezier(0.16, 1, 0.3, 1); }
+@media (prefers-reduced-motion: reduce) { .box-grow { animation: none; } .react-flow__node.is-box { transition: none; } }

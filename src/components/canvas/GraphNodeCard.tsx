@@ -1,15 +1,39 @@
 "use client";
 
-import { Handle, NodeToolbar, Position, type Node, type NodeProps } from "@xyflow/react";
-import { CornerDownRight, Crosshair, Orbit, SquareArrowOutUpRight } from "lucide-react";
-import { memo } from "react";
+import {
+  Handle,
+  NodeToolbar,
+  Position,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
+import {
+  CornerDownRight,
+  Crosshair,
+  Expand,
+  Highlighter,
+  Maximize2,
+  Minimize2,
+  Orbit,
+  Shrink,
+  SquareArrowOutUpRight,
+} from "lucide-react";
+import { createContext, memo, useContext } from "react";
 import { HEALTH_COLOR, LIFECYCLE_LABEL, NODE_KINDS } from "@/domain/registry";
 import type { NodeView } from "@/domain/types";
 import { useApp } from "@/state/store";
 import { KindIcon } from "../icons";
-import { RING, SQ } from "./layout";
+import { KindShape } from "../shapes";
+import { NODE_H, NODE_W, RING, SHAPE } from "./layout";
+import { useLevel } from "./lod";
 
-export type GraphNodeData = { view: NodeView } & Record<string, unknown>;
+/** Ids connected to the highlighted node (itself included), or null when nothing is highlighted. */
+export const HighlightContext = createContext<Set<string> | null>(null);
+
+export type GraphNodeData = { view: NodeView; fresh?: boolean } & Record<
+  string,
+  unknown
+>;
 export type GraphFlowNode = Node<GraphNodeData, "graph">;
 
 function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
@@ -19,136 +43,379 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
     const t = s.tabs.find((x) => x.id === s.activeTabId);
     return t?.selection?.type === "node" && t.selection.id === v.id;
   });
-  const detailsOpen = useApp((s) => s.tabs.find((x) => x.id === s.activeTabId)?.detailsOpen.includes(v.id) ?? false);
+  const detailsOpen = useApp(
+    (s) =>
+      s.tabs.find((x) => x.id === s.activeTabId)?.detailsOpen.includes(v.id) ??
+      false,
+  );
+  const expanded = useApp(
+    (s) =>
+      s.tabs.find((x) => x.id === s.activeTabId)?.expandedIds.includes(v.id) ??
+      false,
+  );
+  // During the "going in" lead-in, everything except the entered node fades away.
+  const leaving = useApp(
+    (s) =>
+      s.motion?.kind === "enter" &&
+      s.motion.phase === "out" &&
+      s.motion.anchorId !== v.id,
+  );
+  const level = useLevel();
+  const lit = useContext(HighlightContext);
+  const receded = lit !== null && !lit.has(v.id);
+  const highlighted = useApp(
+    (s) =>
+      s.tabs.find((x) => x.id === s.activeTabId)?.highlightIds.includes(v.id) ??
+      false,
+  );
+  const toggleHighlight = useApp((s) => s.toggleHighlight);
   const toggleDetails = useApp((s) => s.toggleDetails);
+  const toggleOpen = useApp((s) => s.toggleOpen);
+  const toggleExpanded = useApp((s) => s.toggleExpanded);
   const focusNode = useApp((s) => s.focusNode);
   const drillInto = useApp((s) => s.drillInto);
   const openNode = useApp((s) => s.openNode);
 
   const isRoot = v.role === "root";
   const ghost = v.role === "ghost";
-  const dim = ghost || v.lifecycle === "retired" || v.lifecycle === "deprecated";
-  const showHealth = (kind.monitorable || v.kind === "system") && v.health !== "unknown";
+  const dim =
+    ghost || v.lifecycle === "retired" || v.lifecycle === "deprecated";
+  const showHealth = v.health !== "unknown";
   const canGoInside = v.childCount > 0 && !ghost;
+  const canExpand = !ghost && (v.externalCount > 0 || expanded);
+
+  const canOpen = canGoInside && v.role !== "ghost";
+  const glow = selected ? kind.color : isRoot ? "var(--accent)" : null;
 
   return (
     <>
-      <NodeToolbar isVisible={selected} position={Position.Top} offset={detailsOpen ? RING + 8 : 8}>
+      <NodeToolbar
+        isVisible={selected}
+        position={Position.Top}
+        offset={detailsOpen ? RING + 8 : 8}
+      >
         <div className="flex items-center gap-0.5 rounded-lg border border-line bg-panel p-0.5 shadow-[var(--shadow)]">
           {!ghost && (
-            <ToolButton label={detailsOpen ? "Hide details" : "Show details (circles)"} active={detailsOpen} onClick={() => toggleDetails(v.id)}>
+            <ToolButton
+              label={detailsOpen ? "Hide details" : "Show details (circles)"}
+              active={detailsOpen}
+              onClick={() => toggleDetails(v.id)}
+            >
               <Orbit size={14} />
             </ToolButton>
           )}
+          {!ghost && (
+            <ToolButton
+              label={
+                highlighted
+                  ? "Stop highlighting its relations"
+                  : "Highlight its relations"
+              }
+              active={highlighted}
+              onClick={() => toggleHighlight(v.id)}
+            >
+              <Highlighter size={14} />
+            </ToolButton>
+          )}
+          {canExpand && (
+            <ToolButton
+              label={
+                expanded
+                  ? "Collapse its neighbours"
+                  : `Expand neighbours (${v.externalCount})`
+              }
+              active={expanded}
+              onClick={() => toggleExpanded(v.id)}
+            >
+              {expanded ? <Shrink size={14} /> : <Expand size={14} />}
+            </ToolButton>
+          )}
+          {canOpen && (
+            <ToolButton
+              label={
+                v.open
+                  ? "Close (hide its contents here)"
+                  : `Open in place (${v.childCount}), stay on this level`
+              }
+              active={v.open}
+              onClick={() => toggleOpen(v.id)}
+            >
+              {v.open ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </ToolButton>
+          )}
           {canGoInside && (
-            <ToolButton label={`Go inside (${v.childCount})`} onClick={() => void drillInto(v.id)}>
+            <ToolButton
+              label={`Go inside (${v.childCount})`}
+              onClick={() => void drillInto(v.id)}
+            >
               <CornerDownRight size={14} />
             </ToolButton>
           )}
           {!isRoot && (
-            <ToolButton label="Focus here (same level)" onClick={() => void focusNode(v.id)}>
+            <ToolButton
+              label="Focus here (same level)"
+              onClick={() => void focusNode(v.id)}
+            >
               <Crosshair size={14} />
             </ToolButton>
           )}
-          <ToolButton label="Open in new tab" onClick={() => void openNode(v.id, { newTab: true })}>
+          <ToolButton
+            label="Open in new tab"
+            onClick={() => void openNode(v.id, { newTab: true })}
+          >
             <SquareArrowOutUpRight size={14} />
           </ToolButton>
         </div>
       </NodeToolbar>
 
-      <div
-        style={{
-          width: SQ,
-          height: SQ,
-          borderColor: selected ? kind.color : undefined,
-          boxShadow: selected
-            ? `0 0 0 2px ${kind.color}66, var(--shadow)`
-            : isRoot
-              ? `0 0 0 3px var(--accent-soft), var(--shadow)`
+      {v.open ? (
+        <div
+          data-node-id={v.id}
+          data-kind={v.kind}
+          data-role={v.role}
+          data-open="true"
+          className={`box-open relative h-full w-full rounded-2xl border-2 transition-[box-shadow,opacity] duration-200 ${
+            data.fresh ? "box-grow" : ""
+          }`}
+          style={{
+            borderColor: selected ? kind.color : `${kind.color}88`,
+            background: `color-mix(in srgb, ${kind.color} 7%, var(--panel))`,
+            boxShadow: glow
+              ? `0 0 0 2px ${glow}66, 0 0 14px ${glow}55`
               : "var(--shadow)",
-          opacity: dim ? (ghost ? 0.6 : 0.7) : 1,
-        }}
-        className={`relative flex flex-col overflow-hidden rounded-2xl border-2 bg-panel transition-shadow ${
-          ghost || v.lifecycle === "proposed" ? "border-dashed" : ""
-        } ${selected ? "" : isRoot ? "border-accent" : "border-line"}`}
-        data-node-id={v.id}
-        data-role={v.role}
-      >
-        <span aria-hidden className="h-1.5 w-full shrink-0" style={{ background: kind.color }} />
-        <Handle id="l" type="target" position={Position.Left} />
-        <Handle id="r" type="source" position={Position.Right} />
-        <Handle id="top" type="source" position={Position.Top} />
-        <Handle id="bottom" type="source" position={Position.Bottom} />
-
-        <div className="flex min-h-0 flex-1 flex-col px-2.5 pb-2 pt-1.5">
-          <div className="flex items-center justify-between">
-            <span
-              className="flex h-6 w-6 items-center justify-center rounded-md"
-              style={{ background: `${kind.color}22`, color: kind.color }}
+            opacity: leaving ? 0 : receded ? 0.45 : 1,
+          }}
+        >
+          <Handle id="l" type="target" position={Position.Left} />
+          <Handle id="r" type="source" position={Position.Right} />
+          <Handle id="top" type="source" position={Position.Top} />
+          <Handle id="bottom" type="source" position={Position.Bottom} />
+          <div
+            className="flex items-center gap-2 px-3 pt-2"
+            style={{ height: 46 }}
+          >
+            <KindShape kind={v.kind} size={30} />
+            <div className="min-w-0 flex-1 leading-tight">
+              <div
+                className="truncate text-[13px] font-semibold text-ink"
+                title={v.name}
+              >
+                {v.name}
+              </div>
+              <div className="text-[10.5px] text-muted">
+                {kind.label} · {v.childCount} inside
+              </div>
+            </div>
+            {showHealth && (
+              <span
+                className="h-3 w-3 shrink-0 rounded-full border-2 border-panel"
+                style={{ background: HEALTH_COLOR[v.health] }}
+                title={`Health: ${v.health}`}
+              />
+            )}
+            {highlighted && (
+              <span
+                className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-white"
+                title="Its relations are highlighted"
+              >
+                <Highlighter size={9} />
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void drillInto(v.id);
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              title={`Go inside: change level to ${v.name}`}
+              className="nodrag nopan flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted hover:bg-panel2 hover:text-ink"
             >
-              <KindIcon kind={v.kind} size={14} />
+              <CornerDownRight size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleOpen(v.id);
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              title="Close: hide its contents and stay on this level"
+              className="nodrag nopan flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent hover:brightness-110"
+            >
+              <Minimize2 size={13} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            width: NODE_W,
+            height: NODE_H,
+            opacity: leaving
+              ? 0
+              : receded
+                ? 0.3
+                : dim
+                  ? ghost
+                    ? 0.6
+                    : 0.7
+                  : 1,
+          }}
+          className={`group/node flex flex-col items-center transition-opacity duration-300 ${data.fresh ? "node-pop" : ""}`}
+          data-node-id={v.id}
+          data-kind={v.kind}
+          data-role={v.role}
+        >
+          <div
+            className="relative shrink-0 transition-[filter] duration-200"
+            style={{
+              width: SHAPE,
+              height: SHAPE,
+              filter: glow
+                ? `drop-shadow(0 0 7px ${glow}aa)`
+                : "drop-shadow(0 1px 2px rgb(0 0 0 / 0.25))",
+            }}
+          >
+            <KindShape
+              kind={v.kind}
+              size={SHAPE}
+              dashed={ghost || v.lifecycle === "proposed"}
+              accent={isRoot}
+            />
+            <span
+              className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-panel"
+              style={{ color: kind.color }}
+            >
+              <KindIcon kind={v.kind} size={17} />
             </span>
-            <div className="flex items-center gap-1.5">
-              {isRoot && <span className="rounded bg-accent px-1 py-px text-[9px] font-bold uppercase tracking-wider text-white">focus</span>}
-              {showHealth && (
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ background: HEALTH_COLOR[v.health], boxShadow: `0 0 0 3px ${HEALTH_COLOR[v.health]}2e` }}
-                  title={`Health: ${v.health}`}
-                  role="img"
-                  aria-label={`Health ${v.health}`}
-                />
+            <Handle id="l" type="target" position={Position.Left} />
+            <Handle id="r" type="source" position={Position.Right} />
+            <Handle id="top" type="source" position={Position.Top} />
+            <Handle id="bottom" type="source" position={Position.Bottom} />
+
+            {showHealth && (
+              <span
+                className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-panel"
+                style={{ background: HEALTH_COLOR[v.health] }}
+                title={`Health: ${v.health}`}
+                role="img"
+                aria-label={`Health ${v.health}`}
+              />
+            )}
+            {highlighted && (
+              <span
+                className="absolute -left-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-white"
+                title="Its relations are highlighted"
+              >
+                <Highlighter size={9} />
+              </span>
+            )}
+            {isRoot && !highlighted && (
+              <span className="absolute -left-2 -top-2 rounded bg-accent px-1 py-px text-[9px] font-bold uppercase tracking-wider text-white">
+                focus
+              </span>
+            )}
+            {canGoInside && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void drillInto(v.id);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                title={`Go inside: ${v.childCount} nodes`}
+                className="nodrag nopan absolute -bottom-1.5 -right-2.5 flex items-center gap-0.5 rounded-md border border-line bg-panel px-1 py-px text-[10.5px] font-semibold text-accent hover:brightness-110"
+              >
+                <CornerDownRight size={10} /> {v.childCount}
+              </button>
+            )}
+            {canOpen && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleOpen(v.id);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                title={`Open in place: show its ${v.childCount} contents here, stay on this level`}
+                className="nodrag nopan absolute -bottom-1.5 left-1/2 flex -translate-x-1/2 items-center rounded-md border border-line bg-panel px-1 py-px text-muted hover:text-accent hover:brightness-110"
+              >
+                <Maximize2 size={10} />
+              </button>
+            )}
+            {canExpand && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpanded(v.id);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                title={
+                  expanded
+                    ? "Collapse its neighbours"
+                    : `Expand: ${v.externalCount} connections reach beyond this view`
+                }
+                className={`nodrag nopan absolute -bottom-1.5 -left-2.5 flex items-center gap-0.5 rounded-md border px-1 py-px text-[10.5px] font-semibold hover:brightness-110 ${
+                  expanded
+                    ? "border-accent bg-accent text-white"
+                    : "border-line bg-panel text-muted"
+                }`}
+              >
+                {expanded ? <Shrink size={10} /> : <Expand size={10} />}
+                {expanded ? "open" : v.externalCount}
+              </button>
+            )}
+          </div>
+
+          {/* Overview hides the text, except for what you are working with or pointing at. */}
+          <div
+            className={`mt-1.5 w-full text-center transition-opacity duration-200 ${
+              level === 0 && !selected && !highlighted && !isRoot && !expanded
+                ? "opacity-0 group-hover/node:opacity-100"
+                : ""
+            }`}
+          >
+            <div
+              className="line-clamp-2 text-[12px] font-semibold leading-tight text-ink"
+              title={v.name}
+            >
+              {v.name}
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 text-[10.5px] leading-tight text-muted">
+              <span>{ghost ? "outside this level" : kind.label}</span>
+              {v.lifecycle !== "active" && (
+                <Pill>{LIFECYCLE_LABEL[v.lifecycle].toLowerCase()}</Pill>
               )}
             </div>
-          </div>
-
-          <div className="mt-1.5 line-clamp-3 text-[12.5px] font-semibold leading-snug text-ink" title={v.name}>
-            {v.name}
-          </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] leading-tight text-muted">
-            <span>{kind.label}</span>
-            {v.external && <Pill>external</Pill>}
-            {v.lifecycle !== "active" && <Pill>{LIFECYCLE_LABEL[v.lifecycle].toLowerCase()}</Pill>}
-          </div>
-
-          <div className="mt-auto flex items-center gap-1.5 pt-1.5 text-[11px]">
-            {ghost ? (
-              <span className="text-muted">outside this level</span>
-            ) : (
-              <>
-                {canGoInside && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void drillInto(v.id);
-                    }}
-                    onDoubleClick={(e) => e.stopPropagation()}
-                    title={`Go inside: ${v.childCount} nodes`}
-                    className="nodrag nopan flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 font-medium text-accent hover:brightness-110"
-                  >
-                    <CornerDownRight size={11} /> {v.childCount}
-                  </button>
+            {level === 2 && !ghost && (
+              <div className="mt-0.5 space-y-px text-[10px] leading-tight text-muted">
+                {v.details.monitoring?.headline && (
+                  <div className="font-medium text-ink">
+                    {v.details.monitoring.headline.label}{" "}
+                    {Math.round(v.details.monitoring.headline.value * 10) / 10}
+                    {v.details.monitoring.headline.unit}
+                  </div>
                 )}
-                {v.externalCount > 0 && (
-                  <span
-                    className="ml-auto rounded-md border border-line px-1.5 py-0.5 text-muted"
-                    title={`${v.externalCount} connections reach beyond this view`}
-                  >
-                    ↗ {v.externalCount}
-                  </span>
+                {v.details.owner && (
+                  <div className="truncate">{v.details.owner.name}</div>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
 
 function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="rounded bg-panel2 px-1 py-px text-[9.5px] uppercase tracking-wide">{children}</span>;
+  return (
+    <span className="rounded bg-panel2 px-1 py-px text-[9.5px] uppercase tracking-wide">
+      {children}
+    </span>
+  );
 }
 
 function ToolButton({

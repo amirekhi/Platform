@@ -32,14 +32,48 @@ function n(
   });
 }
 
+/* ---------------- Organisation ---------------- */
+n("co-group", "company", "Northwind Group", null, "Holding company. Owns corporate IT, finance, HR and the primary data centre.", { tags: ["holding"], props: { employees: 5200, hq: "Frankfurt" } });
+n("co-retail", "company", "Northwind Retail", null, "Online and physical retail brand with stores in Germany and France.", { tags: ["retail"], props: { employees: 2900, brands: 2 } });
+n("co-logistics", "company", "Northwind Logistics", null, "Warehousing and last-mile delivery for the group.", { tags: ["logistics"], props: { employees: 1400, warehouses: 2 } });
+n("dept-it", "department", "IT & Operations", "co-group", "Platform, identity, data and corporate IT.", { tags: ["it"] });
+n("dept-finance", "department", "Finance", "co-group", "Accounting, treasury and reporting.", { tags: ["finance"] });
+n("dept-hr", "department", "People & HR", "co-group", "Recruiting, payroll and people operations.", { tags: ["hr"] });
+n("dept-ecom", "department", "E-commerce", "co-retail", "Online storefront, checkout and catalog.", { tags: ["ecommerce"] });
+
+/* ---------------- Physical: buildings, stores, warehouses, stock ---------------- */
+n("bld-hq", "building", "Frankfurt HQ", "co-group", "Group headquarters, 14 floors, 1,900 desks.", { props: { city: "Frankfurt", floors: 14 }, tags: ["office"] });
+n("store-berlin", "store", "Berlin Alexanderplatz", "co-retail", "Flagship store, 3 floors, 22 tills.", { props: { city: "Berlin", tills: 22 }, tags: ["flagship"] });
+n("store-munich", "store", "Munich Marienplatz", "co-retail", "City-centre store, 12 tills.", { props: { city: "Munich", tills: 12 } });
+n("store-paris", "store", "Paris Rivoli", "co-retail", "French flagship, 16 tills.", { props: { city: "Paris", tills: 16 } });
+n("wh-rotterdam", "warehouse", "Rotterdam Fulfilment Centre", "co-logistics", "Main e-commerce warehouse, 38,000 m2.", { props: { city: "Rotterdam", areaM2: 38000 } });
+n("wh-hamburg", "warehouse", "Hamburg Warehouse", "co-logistics", "Regional warehouse for the north.", { props: { city: "Hamburg", areaM2: 14000 } });
+n("stock-electronics", "stock", "Electronics stock", "wh-rotterdam", "Inventory of consumer electronics. About 41,000 SKUs on hand.", { props: { skus: 41000, valueEur: "18.2M" }, tags: ["inventory"] });
+n("stock-apparel", "stock", "Apparel stock", "wh-rotterdam", "Inventory of clothing and shoes with seasonal turnover.", { props: { skus: 92000, valueEur: "9.6M" }, tags: ["inventory"] });
+n("stock-home", "stock", "Home & garden stock", "wh-hamburg", "Bulky household goods.", { props: { skus: 12000, valueEur: "4.1M" }, tags: ["inventory"] });
+
+/* ---------------- Physical: data centre down to bare metal ---------------- */
+n("dc-fra1", "datacenter", "Frankfurt DC FRA1", "co-group", "Primary data centre: 2 halls, N+1 power, 14 racks.", { owner: "team-platform", props: { tier: "III", powerKw: 480, location: "Frankfurt" } });
+n("rack-fra-a12", "rack", "Rack FRA1-A12", "dc-fra1", "Compute rack, 42U. Hosts production database and Kubernetes workers.", { owner: "team-platform", props: { units: 42, usedU: 31 } });
+n("rack-fra-a13", "rack", "Rack FRA1-A13", "dc-fra1", "Compute rack, 42U. Kubernetes workers and staging.", { owner: "team-platform", props: { units: 42, usedU: 24 } });
+n("hw-fra-a12-05", "hardware", "dell-r760-a12-05", "rack-fra-a12", "Dell PowerEdge R760. Kubernetes worker.", { owner: "team-platform", props: { cpu: "2x Xeon 6430", ramGb: 512, serial: "7XK2M93" } });
+n("hw-fra-a12-07", "hardware", "dell-r760-a12-07", "rack-fra-a12", "Dell PowerEdge R760. Hosts the primary MongoDB server (mongo-prod-01).", { owner: "team-platform", props: { cpu: "2x Xeon 6430", ramGb: 512, nvme: "8x 3.84TB", serial: "7XK2P10" } });
+n("hw-fra-a13-02", "hardware", "dell-r760-a13-02", "rack-fra-a13", "Dell PowerEdge R760. Kubernetes worker for production and staging.", { owner: "team-platform", props: { cpu: "2x Xeon 6430", ramGb: 256, serial: "7XK2Q55" } });
+n("net-tor-a12", "network", "Switch TOR-A12", "rack-fra-a12", "Top-of-rack switch, 48x25G + 6x100G.", { owner: "team-platform", props: { model: "Arista 7050X3", ports: 54 } });
+n("net-tor-a13", "network", "Switch TOR-A13", "rack-fra-a13", "Top-of-rack switch, 48x25G + 6x100G.", { owner: "team-platform", props: { model: "Arista 7050X3", ports: 54 } });
+n("net-core-01", "network", "Core router CORE-01", "dc-fra1", "Core router with uplinks to the internet and the offices.", { owner: "team-platform", props: { model: "Juniper MX304", uplinks: "2x100G" } });
+
 /* ---------------- Teams ---------------- */
-n("team-checkout", "team", "Checkout Team", null, "Owns the purchase flow: cart, checkout and payments.", { tags: ["payments", "squad"] });
-n("team-catalog", "team", "Catalog Team", null, "Owns product data, search and merchandising feeds.", { tags: ["catalog", "squad"] });
-n("team-platform", "team", "Platform Team", null, "Owns CI/CD, Kubernetes, observability and shared infrastructure.", { tags: ["platform", "sre"] });
-n("team-growth", "team", "Growth Team", null, "Owns the storefront experience and conversion.", { tags: ["frontend", "squad"] });
-n("team-identity", "team", "Identity Team", null, "Owns authentication, authorisation and directory integration.", { tags: ["security"] });
-n("team-fulfilment", "team", "Fulfilment Team", null, "Owns orders, inventory and shipping.", { tags: ["logistics", "squad"] });
-n("team-data", "team", "Data Team", null, "Owns the warehouse, ETL and reporting.", { tags: ["analytics"] });
+n("team-checkout", "team", "Checkout Team", "dept-ecom", "Owns the purchase flow: cart, checkout and payments.", { tags: ["payments", "squad"] });
+n("team-catalog", "team", "Catalog Team", "dept-ecom", "Owns product data, search and merchandising feeds.", { tags: ["catalog", "squad"] });
+n("team-platform", "team", "Platform Team", "dept-it", "Owns CI/CD, Kubernetes, observability and shared infrastructure.", { tags: ["platform", "sre"] });
+n("team-growth", "team", "Growth Team", "dept-ecom", "Owns the storefront experience and conversion.", { tags: ["frontend", "squad"] });
+n("team-identity", "team", "Identity Team", "dept-it", "Owns authentication, authorisation and directory integration.", { tags: ["security"] });
+n("team-fulfilment", "team", "Fulfilment Team", "co-logistics", "Owns orders, inventory and shipping.", { tags: ["logistics", "squad"] });
+n("team-data", "team", "Data Team", "dept-it", "Owns the warehouse, ETL and reporting.", { tags: ["analytics"] });
+
+n("team-corp", "team", "Corporate Systems Team", "dept-it", "Owns ERP, HR and other corporate applications.", { tags: ["corporate"] });
+n("team-retailops", "team", "Retail Operations Tech", "dept-ecom", "Owns the in-store point-of-sale estate.", { tags: ["stores"] });
 
 /* ---------------- Systems ---------------- */
 n("sys-storefront", "system", "Storefront", null, "Customer-facing web and mobile shopping experience.", { owner: "team-growth", tags: ["customer-facing", "tier-1"] });
@@ -120,5 +154,29 @@ n("k8s-stg", "cluster", "k8s-staging", "sys-platform", "Staging Kubernetes clust
 n("srv-mongo-01", "server", "mongo-prod-01", "sys-platform", "Primary MongoDB host for the catalog database.", { owner: "team-platform", props: { os: "Ubuntu 24.04", cpu: 16, ramGb: 64 } });
 n("obs-prom", "observability", "Prometheus", "sys-platform", "Metrics collection and alert evaluation.", { owner: "team-platform", props: { retention: "30d" } });
 n("obs-grafana", "observability", "Grafana", "sys-platform", "Dashboards for metrics and logs.", { owner: "team-platform" });
+
+/* ---------------- Point of Sale ---------------- */
+n("sys-pos", "system", "Point of Sale", null, "Tills, store back-office and payment terminals.", { owner: "team-retailops", tags: ["stores", "tier-1"] });
+n("app-till", "ui-app", "Till Application", "sys-pos", "Touchscreen till software used by store staff.", { owner: "team-retailops", props: { framework: "Electron" } });
+n("svc-pos", "service", "POS Service", "sys-pos", "Prices baskets, applies promotions and records sales.", { owner: "team-retailops", props: { language: "Go" } });
+n("db-pos", "database", "POS Database", "sys-pos", "Stores sales and till sessions.", { owner: "team-retailops", props: { engine: "PostgreSQL 17" } });
+
+/* ---------------- Warehouse Management ---------------- */
+n("sys-wms", "system", "Warehouse Management", null, "Picking, packing, putaway and stock counting in the warehouses.", { owner: "team-fulfilment", tags: ["tier-2"] });
+n("app-scanner", "ui-app", "Handheld Scanner App", "sys-wms", "Android app used by pickers and packers.", { owner: "team-fulfilment", props: { platform: "Android" } });
+n("svc-wms", "service", "WMS Service", "sys-wms", "Directs picking waves and updates stock positions.", { owner: "team-fulfilment", props: { language: "Java" } });
+n("db-wms", "database", "WMS Database", "sys-wms", "Locations, stock positions and tasks.", { owner: "team-fulfilment", props: { engine: "PostgreSQL 17" } });
+n("cache-wms", "cache", "WMS Redis", "sys-wms", "Redis holding live pick-wave state.", { owner: "team-fulfilment", props: { engine: "Redis 7" } });
+
+/* ---------------- ERP ---------------- */
+n("sys-erp", "system", "ERP & Finance", null, "General ledger, procurement and group reporting.", { owner: "team-corp", tags: ["finance", "tier-2"] });
+n("svc-erp", "service", "ERP Application", "sys-erp", "Packaged ERP with custom extensions.", { owner: "team-corp", props: { vendor: "SAP", language: "ABAP" } });
+n("db-erp", "database", "ERP Database", "sys-erp", "ERP datastore.", { owner: "team-corp", props: { engine: "SAP HANA" } });
+
+/* ---------------- HR ---------------- */
+n("sys-hr", "system", "People Platform", null, "Employee records, payroll and recruiting.", { owner: "team-corp", tags: ["hr", "pii"] });
+n("app-hr", "ui-app", "HR Portal", "sys-hr", "Self-service portal for employees and managers.", { owner: "team-corp", props: { framework: "React" } });
+n("svc-hr", "service", "HR Service", "sys-hr", "Employee, payroll and leave logic.", { owner: "team-corp", props: { language: "Kotlin" } });
+n("db-hr", "database", "HR Database", "sys-hr", "Employee records.", { owner: "team-corp", tags: ["pii"], props: { engine: "PostgreSQL 17" } });
 
 export const NODES: GraphNode[] = out;

@@ -83,6 +83,30 @@ Inside a system you see its services, not their APIs, so relations that end at a
 - **Layout:** left-to-right layered (dagre). Squares reserve room for their circles. Nodes can be dragged (their circles follow).
 - The **2D renderer is the default**. An optional 3D renderer would use the same view model and each kind's layer as depth. Not built yet.
 
+## 5b. Enterprise levels, shapes, stacking and motion (v3)
+
+### Enterprise hierarchy
+The top level is the whole enterprise: **companies** and **software systems** side by side. Software connects to the business through relations (`serves`, `supplies`, `tracks`), so an organisation can be opened to see which software supports it, and a system to see which companies, stores or warehouses it serves.
+
+Levels, from the top: enterprise, then company, department, team, building, store, warehouse and stock; and in the software direction system, service/app/database, API/table, down to data centre, rack, hardware and network device (bare metal). Containment (`parentId`) gives "go inside"; relations give "around". Relations between deep nodes are lifted to the visible level, so the enterprise view shows, for example, Point of Sale linked to Northwind Retail because its POS Service serves the stores.
+
+"Stock" is modelled as inventory stock held in a warehouse.
+
+### Lifted relations in focus views
+A focus ("around") view also follows relations that exist only between what a node contains, and draws them as dotted lifted relations to the counterpart at the same level. Example: People Platform appears when focusing Identity & Access, because the HR Service integrates with Corporate LDAP, which lives inside Identity & Access. The counterpart is the far node's ancestor at the same depth, so systems pair with systems and services with services. A "Lifted" toggle on the canvas bar turns this off.
+
+### Open in place (a third kind of movement)
+Besides *same level* (focus) and *change level* (go inside), a node can be **opened in place**: it grows into a box that shows its contents inside it, in the same view and without changing level. Relations from outside attach to the specific part they reach. Several nodes can be open at once, boxes can nest (up to 3 deep), and each closes on its own or all at once ("Close opened"). Layout is computed from the inside out: contents first, which sizes the box, then the box is placed among its siblings. State: `openIds` per tab; DataSource: `ScopeQuery.openIds`, `NodeView.open` and `NodeView.containerId`.
+
+### Shapes per kind
+Every node kind has its own silhouette (registry field `shape`, drawn by `components/shapes.tsx`): database cylinder, service hexagon, API ticket, cache diamond, queue arrow-plate, repository folder, pipeline chevron, image cube, cluster stack, server unit, company tower, department notched card, building house, store awning, warehouse barn, stock crate, data centre hall, rack, hardware chassis, network switch, and so on. The Shapes panel on the canvas lists them all. Circles remain the shape of in-place details.
+
+### Stacking expansion
+"Expand" on a node adds that node's neighbours to the view and never closes another expansion. Expansions are kept per tab and cleared when the level changes. "Collapse expanded" clears them all, and each node can be collapsed on its own.
+
+### Motion
+Going inside zooms the camera into the node while the rest fades, then the new level scales in. Going up scales out. Expanding grows new nodes out of the node you expanded and glides existing nodes to their new places. Respects `prefers-reduced-motion`.
+
 ## 6. Search
 
 One index over nodes, relations and documents, with prefix matching, typo tolerance, field boosts (title, tags, ownership/path), AND-then-OR fallback, type and kind filters, highlighted terms and content snippets. Hits open the right object: a node opens or focuses a tab, a relation opens as an object, a document opens inside its owning node or relation.

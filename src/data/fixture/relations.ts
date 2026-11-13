@@ -155,4 +155,61 @@ r("obs-prom", "monitors", "db-catalog");
 r("obs-prom", "monitors", "k8s-prod");
 r("obs-grafana", "reads_from", "obs-prom");
 
+/* ---------- Enterprise: software serves the business ---------- */
+r("sys-storefront", "serves", "co-retail", { description: "The online storefront is Northwind Retail's online shop." });
+r("sys-erp", "serves", "co-group", { description: "General ledger and procurement for the group." });
+r("sys-erp", "serves", "dept-finance");
+r("sys-hr", "serves", "dept-hr");
+r("sys-hr", "serves", "bld-hq", { description: "Badge access and desk booking for HQ." });
+r("svc-pos", "serves", "store-berlin", { name: "Berlin till estate", props: { tills: 22 } });
+r("svc-pos", "serves", "store-munich", { name: "Munich till estate", props: { tills: 12 } });
+r("svc-pos", "serves", "store-paris", { name: "Paris till estate", props: { tills: 16 } });
+r("svc-wms", "serves", "wh-rotterdam");
+r("svc-wms", "serves", "wh-hamburg");
+r("svc-wms", "tracks", "stock-electronics", { name: "Electronics stock positions" });
+r("svc-wms", "tracks", "stock-apparel", { name: "Apparel stock positions" });
+r("svc-wms", "tracks", "stock-home", { name: "Home & garden stock positions" });
+r("svc-inventory", "tracks", "stock-electronics", { name: "Sellable availability", description: "Fulfilment's view of sellable electronics stock, fed by the WMS." });
+r("svc-inventory", "tracks", "stock-apparel", { name: "Sellable availability" });
+r("co-logistics", "supplies", "co-retail", { description: "Logistics holds and ships the stock sold by Retail." });
+r("wh-rotterdam", "supplies", "store-berlin", { name: "Berlin replenishment" });
+r("wh-rotterdam", "supplies", "store-munich", { name: "Munich replenishment" });
+r("wh-hamburg", "supplies", "store-paris", { name: "Paris replenishment" });
+r("stock-electronics", "supplies", "store-berlin");
+r("sys-wms", "depends_on", "sys-fulfilment", { description: "Order allocation hands picks to the warehouse." });
+r("sys-pos", "depends_on", "sys-catalog", { description: "Prices and product data for tills." });
+r("sys-pos", "depends_on", "sys-identity", { description: "Staff sign-in at the till." });
+r("sys-data", "reads_from", "sys-erp");
+r("sys-data", "reads_from", "sys-pos");
+r("sys-pos", "runs_on", "sys-platform");
+r("sys-wms", "runs_on", "sys-platform");
+r("sys-erp", "runs_on", "sys-platform");
+r("sys-hr", "runs_on", "sys-platform");
+r("app-till", "calls", "svc-pos");
+r("svc-pos", "writes_to", "db-pos");
+r("app-scanner", "calls", "svc-wms");
+r("svc-wms", "writes_to", "db-wms");
+r("svc-wms", "writes_to", "cache-wms");
+r("svc-erp", "writes_to", "db-erp");
+r("app-hr", "calls", "svc-hr");
+r("svc-hr", "writes_to", "db-hr");
+r("svc-hr", "integrates_with", "ext-directory", { name: "Directory sync" });
+
+/* ---------- Bare metal ---------- */
+r("env-prod", "hosted_on", "dc-fra1");
+r("k8s-prod", "runs_on", "hw-fra-a12-05", { name: "Worker node placement" });
+r("k8s-prod", "runs_on", "hw-fra-a13-02", { name: "Worker node placement" });
+r("k8s-stg", "runs_on", "hw-fra-a13-02");
+r("srv-mongo-01", "hosted_on", "hw-fra-a12-07", {
+  name: "Bare-metal placement",
+  description: "mongo-prod-01 is a dedicated host: no hypervisor, direct NVMe access for the catalog database.",
+});
+r("hw-fra-a12-05", "connects_to", "net-tor-a12", { props: { speed: "25G", port: "Et12" } });
+r("hw-fra-a12-07", "connects_to", "net-tor-a12", { props: { speed: "25G", port: "Et14" } });
+r("hw-fra-a13-02", "connects_to", "net-tor-a13", { props: { speed: "25G", port: "Et03" } });
+r("net-tor-a12", "connects_to", "net-core-01", { props: { speed: "100G" } });
+r("net-tor-a13", "connects_to", "net-core-01", { props: { speed: "100G" } });
+r("obs-prom", "monitors", "hw-fra-a12-07", { name: "Hardware exporter", description: "Node and IPMI exporters on the bare-metal host." });
+r("obs-prom", "monitors", "net-core-01");
+
 export const RELATIONS: Relation[] = out;

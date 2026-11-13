@@ -28,7 +28,17 @@ export type NodeKind =
   | "observability"
   | "dashboard"
   | "external"
-  | "team";
+  | "team"
+  | "company"
+  | "department"
+  | "building"
+  | "store"
+  | "warehouse"
+  | "stock"
+  | "datacenter"
+  | "rack"
+  | "hardware"
+  | "network";
 
 export type RelationType =
   | "depends_on"
@@ -48,7 +58,11 @@ export type RelationType =
   | "deployed_to"
   | "runs_on"
   | "hosted_on"
-  | "monitors";
+  | "monitors"
+  | "serves"
+  | "supplies"
+  | "tracks"
+  | "connects_to";
 
 export type Lifecycle =
   | "proposed"
@@ -187,6 +201,10 @@ export interface NodeView extends GraphNode {
   /** Connections to nodes that are not represented in this view. */
   externalCount: number;
   details: NodeDetails;
+  /** When opened in place, the node whose box this node sits inside. */
+  containerId: Id | null;
+  /** True when this node is opened in place and shows its contents inside itself. */
+  open: boolean;
 }
 
 export interface RelationView extends Relation {

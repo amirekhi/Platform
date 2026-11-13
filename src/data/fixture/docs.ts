@@ -668,4 +668,132 @@ Ask your team lead for access to the secrets manager and staging cluster.
 If a customer reports a problem paying, direct them to support and note the time of the attempt.
 `,
   },
+  {
+    id: "doc-group-overview",
+    title: "Northwind Group: companies and how software supports them",
+    docType: "architecture",
+    audience: ["management","developer"],
+    attachedTo: [node("co-group"), node("co-retail"), node("co-logistics")],
+    author: "Ines Vogel",
+    revision: 3,
+    updatedAt: "2026-11-04T10:00:00Z",
+    content: `# Northwind Group overview
+
+Three companies share one software estate.
+
+| Company | Main software | Physical estate |
+|---|---|---|
+| Northwind Retail | Storefront, Point of Sale, Catalog, Checkout | 3 stores |
+| Northwind Logistics | Warehouse Management, Order Fulfilment | 2 warehouses |
+| Northwind Group | ERP, People Platform, Platform | HQ, Frankfurt data centre |
+
+Open a software system to see which companies, stores and warehouses it serves, and drill down to the hardware it runs on.`,
+  },
+  {
+    id: "doc-pos-rollout",
+    title: "Point of Sale rollout runbook",
+    docType: "runbook",
+    audience: ["devops","store-ops"],
+    attachedTo: [node("sys-pos"), node("store-berlin")],
+    author: "Jonas Reiter",
+    revision: 2,
+    updatedAt: "2026-11-03T10:00:00Z",
+    content: `# Point of Sale rollout runbook
+
+1. Schedule the store outside trading hours.
+2. Deploy the till application to one till and run a test basket.
+3. Roll out to the remaining tills and confirm each reports to the POS Service.
+4. Keep the previous version installed for 48 hours for rollback.`,
+  },
+  {
+    id: "doc-wms-stock",
+    title: "How stock positions are tracked",
+    docType: "architecture",
+    audience: ["developer","warehouse-ops"],
+    attachedTo: [node("svc-wms"), node("stock-electronics")],
+    author: "Femke de Vries",
+    revision: 4,
+    updatedAt: "2026-11-05T10:00:00Z",
+    content: `# How stock positions are tracked
+
+The WMS records every putaway, pick and count. The Inventory Service reads a summarised view and exposes sellable availability to checkout.
+
+\`\`\`mermaid
+flowchart LR
+  S[Scanner] --> W[WMS Service]
+  W --> D[(WMS DB)]
+  W --> I[Inventory Service]
+\`\`\``,
+  },
+  {
+    id: "doc-rel-wms-inv",
+    title: "Stock availability contract (relation)",
+    docType: "contract",
+    audience: ["developer"],
+    attachedTo: [rel(relId("svc-inventory", "tracks", "stock-electronics"))],
+    author: "Femke de Vries",
+    revision: 1,
+    updatedAt: "2026-11-02T10:00:00Z",
+    content: `# Stock availability contract
+
+Sellable availability = on-hand minus reserved minus safety stock. Refreshed at most 30 seconds behind the WMS. This document belongs to this relation only.`,
+  },
+  {
+    id: "doc-dc-fra1",
+    title: "Frankfurt DC FRA1 site guide",
+    docType: "runbook",
+    audience: ["devops","facilities"],
+    attachedTo: [node("dc-fra1")],
+    author: "Marta Sommer",
+    revision: 5,
+    updatedAt: "2026-11-06T10:00:00Z",
+    content: `# Frankfurt DC FRA1 site guide
+
+- Two halls, N+1 power and cooling.
+- Access requires a badge and a booked ticket.
+- Emergency contact: facilities desk, 24/7.
+- Racks are numbered by hall and row (A12 means row A, rack 12).`,
+  },
+  {
+    id: "doc-mongo-hw",
+    title: "Replacing a failed fan in dell-r760-a12-07",
+    docType: "runbook",
+    audience: ["devops"],
+    attachedTo: [node("hw-fra-a12-07"), node("srv-mongo-01")],
+    author: "Marta Sommer",
+    revision: 2,
+    updatedAt: "2026-11-03T10:00:00Z",
+    content: `# Replacing a failed fan
+
+1. Confirm the alert in the hardware exporter and the iDRAC event log.
+2. Fail the MongoDB primary over to a secondary before touching the host.
+3. Replace the fan module (hot-swap) and verify the temperature trend.
+4. Fail back and close the alert.`,
+  },
+  {
+    id: "doc-rel-mongo-place",
+    title: "mongo-prod-01 bare-metal placement (relation)",
+    docType: "architecture",
+    audience: ["devops"],
+    attachedTo: [rel(relId("srv-mongo-01", "hosted_on", "hw-fra-a12-07"))],
+    author: "Marta Sommer",
+    revision: 1,
+    updatedAt: "2026-11-02T10:00:00Z",
+    content: `# Why bare metal
+
+The catalog database needs predictable NVMe latency. It runs directly on the host with no hypervisor. Moving it needs a planned maintenance window.`,
+  },
+  {
+    id: "doc-erp-close",
+    title: "Month-end close process",
+    docType: "runbook",
+    audience: ["finance"],
+    attachedTo: [node("sys-erp"), node("dept-finance")],
+    author: "Katrin Bauer",
+    revision: 3,
+    updatedAt: "2026-11-04T10:00:00Z",
+    content: `# Month-end close
+
+The ERP locks the period on working day 3. Data & Analytics reads the closed ledger for group reporting.`,
+  },
 ];

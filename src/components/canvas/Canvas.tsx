@@ -9,11 +9,14 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  getViewportForBounds,
+  useStore,
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { prefersReducedMotion } from "@/state/store";
 import { getDataSource } from "@/data";
 import { NODE_KINDS, RELATION_TYPES } from "@/domain/registry";
 import type { GraphView, Id } from "@/domain/types";
@@ -22,18 +25,34 @@ import { currentScope, type Tab, useApp } from "@/state/store";
 import { CanvasBar } from "./CanvasBar";
 import { DetailBubble, type DetailFlowNode } from "./DetailBubble";
 import { detailCategories } from "./details";
-import { ContainmentEdge, type ContainmentFlowEdge, RelationEdge, type RelationFlowEdge } from "./GraphEdges";
-import { GraphNodeCard, type GraphFlowNode } from "./GraphNodeCard";
+import {
+  ContainmentEdge,
+  type ContainmentFlowEdge,
+  RelationEdge,
+  type RelationFlowEdge,
+} from "./GraphEdges";
+import {
+  GraphNodeCard,
+  HighlightContext,
+  type GraphFlowNode,
+} from "./GraphNodeCard";
 import { Legend } from "./Legend";
-import { computeLayout, detailSlots } from "./layout";
+import { NODE_H, NODE_W, computeLayout, detailSlots } from "./layout";
 
 const nodeTypes = { graph: GraphNodeCard, detail: DetailBubble };
 const edgeTypes = { relation: RelationEdge, containment: ContainmentEdge };
 
 interface Loaded {
   key: string;
+  /** Changes only when the level changes. Expansions and filters update in place. */
+  flowKey: string;
   view: GraphView;
 }
+
+const flowKeyOf = (tab: Tab) => {
+  const s = currentScope(tab);
+  return [tab.id, s.rootId ?? "~", s.mode].join("|");
+};
 
 /** Everything that changes WHAT is shown (as opposed to how it is decorated). */
 function scopeKey(tab: Tab) {
@@ -45,7 +64,10 @@ function scopeKey(tab: Tab) {
     s.mode === "around" ? tab.radius : "",
     [...tab.hiddenRelationTypes].sort().join(","),
     tab.showContainment ? "c" : "n",
+    tab.showLifted ? "l" : "",
     s.mode === "inside" && tab.showExternal ? "x" : "",
+    [...tab.expandedIds].sort().join(","),
+    [...tab.openIds].sort().join(","),
   ].join("|");
 }
 
@@ -54,28 +76,59 @@ export function Canvas({ tab }: { tab: Tab }) {
   const scope = currentScope(tab);
   const { data, last } = useAsync<Loaded>(key, async () => ({
     key,
+    flowKey: flowKeyOf(tab),
     view: await getDataSource().getScopeView({
       rootId: scope.rootId,
       mode: scope.mode,
       radius: tab.radius,
       hiddenRelationTypes: tab.hiddenRelationTypes,
       showContainment: tab.showContainment,
+      showLifted: tab.showLifted,
       showExternal: tab.showExternal,
+      expandedIds: tab.expandedIds,
+      openIds: tab.openIds,
     }),
   }));
   const loaded = data ?? last;
+  const motion = useApp((s) => (s.motion?.tabId === tab.id ? s.motion : null));
+  const lead = motion?.kind === "enter" && motion.phase === "out";
+  const anim =
+    motion &&
+    motion.phase === "in" &&
+    (motion.kind === "enter" ||
+      motion.kind === "exit" ||
+      motion.kind === "focus")
+      ? `anim-${motion.kind}`
+      : "";
 
   return (
-    <div className="relative h-full w-full">
-      <ReactFlowProvider>
-        {loaded ? <Flow key={loaded.key} loaded={loaded} detailsOpen={tab.detailsOpen} /> : <Centered>Loading…</Centered>}
-      </ReactFlowProvider>
-      <CanvasBar tab={tab} view={loaded?.view} />
-      <Legend />
-      {loaded && loaded.view.nodes.length === 0 && (
-        <Centered>{scope.mode === "inside" ? "Nothing inside this node." : "Nothing to show."}</Centered>
-      )}
-    </div>
+    <ReactFlowProvider>
+      <div className="relative h-full w-full">
+        <div
+          className={`absolute inset-0 ${anim} ${lead ? "motion-lead" : ""}`}
+        >
+          {loaded ? (
+            <Flow
+              key={loaded.flowKey}
+              loaded={loaded}
+              detailsOpen={tab.detailsOpen}
+              rootId={scope.rootId}
+            />
+          ) : (
+            <Centered>Loading…</Centered>
+          )}
+        </div>
+        <CanvasBar tab={tab} view={loaded?.view} />
+        <Legend />
+        {loaded && loaded.view.nodes.length === 0 && (
+          <Centered>
+            {scope.mode === "inside"
+              ? "Nothing inside this node."
+              : "Nothing to show."}
+          </Centered>
+        )}
+      </div>
+    </ReactFlowProvider>
   );
 }
 
@@ -83,22 +136,38 @@ type AnyNode = GraphFlowNode | DetailFlowNode;
 type AnyEdge = RelationFlowEdge | ContainmentFlowEdge | Edge;
 
 function build(view: GraphView, open: Set<Id>) {
-  const pos = computeLayout(view, open);
+  const { pos, size } = computeLayout(view, open);
   const nodes: AnyNode[] = [];
   const edges: AnyEdge[] = [];
 
+  // Parents must come before the nodes inside them. Nodes opened in place become boxes
+  // and the nodes they contain are children of the box, so they move with it.
+  const byId = new Map(view.nodes.map((n) => [n.id, n]));
+  const kids = new Map<string | null, typeof view.nodes>();
   for (const v of view.nodes) {
+    const key = v.containerId && byId.has(v.containerId) ? v.containerId : null;
+    kids.set(key, [...(kids.get(key) ?? []), v]);
+  }
+  const emit = (v: (typeof view.nodes)[number], depth: number) => {
+    const box = size[v.id];
     nodes.push({
       id: v.id,
       type: "graph",
       position: pos[v.id] ?? { x: 0, y: 0 },
-      data: { view: v },
+      parentId:
+        v.containerId && byId.has(v.containerId) ? v.containerId : undefined,
+      ...(box
+        ? { width: box.w, height: box.h, className: "is-box", zIndex: depth }
+        : { zIndex: depth + 10 }),
+      data: { view: v, box },
     } as GraphFlowNode);
-  }
+    for (const c of kids.get(v.id) ?? []) emit(c, depth + 1);
+  };
+  for (const v of kids.get(null) ?? []) emit(v, 0);
 
   // Detail circles are children of their square so they travel with it when dragged.
   for (const v of view.nodes) {
-    if (!open.has(v.id) || v.role === "ghost") continue;
+    if (!open.has(v.id) || v.role === "ghost" || v.open) continue;
     const cats = detailCategories(v);
     const slots = detailSlots(cats.length);
     cats.forEach((cat, i) => {
@@ -121,7 +190,12 @@ function build(view: GraphView, open: Set<Id>) {
         targetHandle: slots[i].side === "top" ? "b" : "t",
         selectable: false,
         focusable: false,
-        style: { stroke: cat.color, strokeWidth: 1.4, strokeDasharray: "2 4", opacity: 0.8 },
+        style: {
+          stroke: cat.color,
+          strokeWidth: 1.4,
+          strokeDasharray: "2 4",
+          opacity: 0.8,
+        },
       });
     });
   }
@@ -129,7 +203,11 @@ function build(view: GraphView, open: Set<Id>) {
   // Pairs of nodes joined by several relations get staggered curves and labels.
   const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const pairCount = new Map<string, number>();
-  for (const r of view.relations) pairCount.set(pairKey(r.sourceId, r.targetId), (pairCount.get(pairKey(r.sourceId, r.targetId)) ?? 0) + 1);
+  for (const r of view.relations)
+    pairCount.set(
+      pairKey(r.sourceId, r.targetId),
+      (pairCount.get(pairKey(r.sourceId, r.targetId)) ?? 0) + 1,
+    );
   const pairSeen = new Map<string, number>();
 
   for (const c of view.containment) {
@@ -157,13 +235,26 @@ function build(view: GraphView, open: Set<Id>) {
       target: r.targetId,
       targetHandle: "l",
       data: { rel: r, index: idx, total: pairCount.get(k) ?? 1 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: RELATION_TYPES[r.type].color, width: 16, height: 16 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: RELATION_TYPES[r.type].color,
+        width: 16,
+        height: 16,
+      },
     } as RelationFlowEdge);
   }
   return { nodes, edges };
 }
 
-function Flow({ loaded, detailsOpen }: { loaded: Loaded; detailsOpen: Id[] }) {
+function Flow({
+  loaded,
+  detailsOpen,
+  rootId,
+}: {
+  loaded: Loaded;
+  detailsOpen: Id[];
+  rootId: Id | null;
+}) {
   const { view } = loaded;
   const select = useApp((s) => s.select);
   const focusNode = useApp((s) => s.focusNode);
@@ -171,70 +262,229 @@ function Flow({ loaded, detailsOpen }: { loaded: Loaded; detailsOpen: Id[] }) {
 
   // Only the open nodes that are actually in this view affect the layout.
   const openKey = useMemo(
-    () => view.nodes.filter((n) => detailsOpen.includes(n.id) && n.role !== "ghost").map((n) => n.id).sort().join(","),
+    () =>
+      view.nodes
+        .filter((n) => detailsOpen.includes(n.id) && n.role !== "ghost")
+        .map((n) => n.id)
+        .sort()
+        .join(","),
     [view, detailsOpen],
   );
-  const built = useMemo(() => build(view, new Set(openKey ? openKey.split(",") : [])), [view, openKey]);
+  const built = useMemo(
+    () => build(view, new Set(openKey ? openKey.split(",") : [])),
+    [view, openKey],
+  );
 
-  // Nodes live in state so dragging works. Re-seed them when the build changes
-  // (the React-endorsed "adjust state during render" pattern, no effect needed).
+  // Nodes live in state so dragging works. When the build changes (an expansion,
+  // a filter, opened details) the render-phase reseed keeps every surviving node
+  // where it is and starts new nodes at the node they grew from. An effect then
+  // tweens everything to its new layout position.
+  const motion = useApp((s) => s.motion);
+  const highlightIds = useApp(
+    (s) => s.tabs.find((t) => t.id === s.activeTabId)?.highlightIds,
+  );
+  const selectedRel = useApp((s) => {
+    const sel = s.tabs.find((t) => t.id === s.activeTabId)?.selection;
+    return sel?.type === "relation" ? sel.id : null;
+  });
+  const lit = useMemo(() => {
+    const marked = (highlightIds ?? []).filter((id) =>
+      view.nodes.some((n) => n.id === id),
+    );
+    if (marked.length === 0) return null;
+    const set = new Set<string>(marked);
+    const m = new Set(marked);
+    for (const r of view.relations) {
+      if (m.has(r.sourceId)) set.add(r.targetId);
+      if (m.has(r.targetId)) set.add(r.sourceId);
+    }
+    // The ends of a selected relation stay readable while the rest recedes.
+    const sr = selectedRel
+      ? view.relations.find((r) => r.id === selectedRel)
+      : undefined;
+    if (sr) {
+      set.add(sr.sourceId);
+      set.add(sr.targetId);
+    }
+    return set;
+  }, [view, highlightIds, selectedRel]);
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(built.nodes);
   const [prevBuilt, setPrevBuilt] = useState(built);
+  const nodesRef = useRef(nodes);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  });
+  const reduced = prefersReducedMotion();
   if (prevBuilt !== built) {
     setPrevBuilt(built);
-    setNodes(built.nodes);
+    if (reduced) {
+      setNodes(built.nodes);
+    } else {
+      const here = new Map(nodes.map((n) => [n.id, n.position]));
+      const anchor =
+        here.get(motion?.anchorId ?? rootId ?? "") ?? built.nodes[0]?.position;
+      setNodes(
+        built.nodes.map((n) => {
+          if (n.type !== "graph") return n;
+          const start = here.get(n.id);
+          if (start) return { ...n, position: start };
+          // Nodes appearing inside an opened box grow in place (their position is relative).
+          if (n.parentId)
+            return { ...n, data: { ...n.data, fresh: true } } as AnyNode;
+          return {
+            ...n,
+            position: anchor ?? n.position,
+            data: { ...n.data, fresh: true },
+          } as AnyNode;
+        }),
+      );
+    }
   }
 
-  // Re-frame after details open or close, because the squares make room for them.
+  const firstBuild = useRef(true);
+  useEffect(() => {
+    if (firstBuild.current) {
+      firstBuild.current = false;
+      return;
+    }
+    if (reduced) return;
+    const target = new Map(
+      built.nodes
+        .filter((n) => n.type === "graph")
+        .map((n) => [n.id, n.position]),
+    );
+    const from = new Map(nodesRef.current.map((n) => [n.id, n.position]));
+    const t0 = performance.now();
+    const DURATION = 420;
+    let raf = 0;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / DURATION);
+      const e = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      setNodes((nds) =>
+        nds.map((n) => {
+          const to = target.get(n.id);
+          const f = from.get(n.id);
+          if (!to || !f) return n;
+          return {
+            ...n,
+            position: { x: f.x + (to.x - f.x) * e, y: f.y + (to.y - f.y) * e },
+          };
+        }),
+      );
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [built]);
+
+  // Lead-in of "going in": zoom the camera into the node being entered.
+  useEffect(() => {
+    if (motion?.kind === "enter" && motion.phase === "out" && motion.anchorId) {
+      void fitView({
+        nodes: [{ id: motion.anchorId }],
+        padding: 0.25,
+        maxZoom: 2.4,
+        duration: 360,
+      });
+    }
+  }, [motion, fitView]);
+
+  // Auto detail is measured against the zoom that fits this whole layout on screen, so every
+  // view (and every canvas size) starts in overview. Computed from the layout itself, which
+  // is exactly what fitView frames, so it is known before the camera has finished moving.
+  const width = useStore((s) => s.width);
+  const height = useStore((s) => s.height);
+  useEffect(() => {
+    const boxes = built.nodes.filter((n) => n.type === "graph" && !n.parentId);
+    if (!boxes.length || !width || !height) return;
+    const x1 = Math.min(...boxes.map((n) => n.position.x));
+    const y1 = Math.min(...boxes.map((n) => n.position.y));
+    const x2 = Math.max(
+      ...boxes.map((n) => n.position.x + (n.width ?? NODE_W)),
+    );
+    const y2 = Math.max(
+      ...boxes.map((n) => n.position.y + (n.height ?? NODE_H)),
+    );
+    const vp = getViewportForBounds(
+      { x: x1, y: y1, width: x2 - x1, height: y2 - y1 },
+      width,
+      height,
+      0.4,
+      1,
+      0.18,
+    );
+    useApp.setState({ fitZoom: vp.zoom });
+  }, [built, width, height]);
+  useEffect(() => () => useApp.setState({ fitZoom: null }), []);
+
+  // Re-frame once the layout has settled after any change of what is shown.
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
       first.current = false;
       return;
     }
-    const t = setTimeout(() => void fitView({ padding: 0.15, minZoom: 0.4, maxZoom: 1, duration: 250 }), 60);
+    const t = setTimeout(
+      () =>
+        void fitView({
+          padding: 0.15,
+          minZoom: 0.4,
+          maxZoom: 1,
+          duration: 300,
+        }),
+      reduced ? 60 : 450,
+    );
     return () => clearTimeout(t);
-  }, [openKey, fitView]);
+  }, [built, fitView, reduced]);
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={built.edges}
-      onNodesChange={onNodesChange}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      onNodeClick={(_, n) => {
-        if (n.type === "graph") select({ type: "node", id: n.id });
-      }}
-      onNodeDoubleClick={(_, n) => {
-        if (n.type === "graph") void focusNode(n.id);
-      }}
-      onPaneClick={() => select(null)}
-      zoomOnDoubleClick={false}
-      fitView
-      fitViewOptions={{ padding: 0.18, minZoom: 0.4, maxZoom: 1 }}
-      minZoom={0.15}
-      maxZoom={1.8}
-      nodesConnectable={false}
-      elementsSelectable={false}
-      deleteKeyCode={null}
-      proOptions={{ hideAttribution: true }}
-      colorMode="system"
-    >
-      <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} color="var(--canvas-dot)" />
-      <Controls showInteractive={false} position="bottom-left" />
-      <MiniMap
-        pannable
-        zoomable
-        position="bottom-right"
-        nodeColor={(n) => {
-          const v = (n.data as { view?: { kind: keyof typeof NODE_KINDS } }).view;
-          return v ? NODE_KINDS[v.kind].color : "transparent";
+    <HighlightContext.Provider value={lit}>
+      <ReactFlow
+        nodes={nodes}
+        edges={built.edges}
+        onNodesChange={onNodesChange}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onNodeClick={(_, n) => {
+          if (n.type === "graph") select({ type: "node", id: n.id });
         }}
-        maskColor="rgba(0,0,0,0.12)"
-        style={{ width: 150, height: 100 }}
-      />
-    </ReactFlow>
+        onNodeDoubleClick={(_, n) => {
+          if (n.type === "graph") void focusNode(n.id);
+        }}
+        onPaneClick={() => select(null)}
+        zoomOnDoubleClick={false}
+        fitView
+        fitViewOptions={{ padding: 0.18, minZoom: 0.4, maxZoom: 1 }}
+        minZoom={0.15}
+        maxZoom={2.6}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        deleteKeyCode={null}
+        proOptions={{ hideAttribution: true }}
+        colorMode="system"
+      >
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={22}
+          size={1.4}
+          color="var(--canvas-dot)"
+        />
+        <Controls showInteractive={false} position="bottom-left" />
+        <MiniMap
+          pannable
+          zoomable
+          position="bottom-right"
+          nodeColor={(n) => {
+            const v = (n.data as { view?: { kind: keyof typeof NODE_KINDS } })
+              .view;
+            return v ? NODE_KINDS[v.kind].color : "transparent";
+          }}
+          maskColor="rgba(0,0,0,0.12)"
+          style={{ width: 150, height: 100 }}
+        />
+      </ReactFlow>
+    </HighlightContext.Provider>
   );
 }
 

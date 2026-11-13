@@ -105,4 +105,36 @@ export const DIAGRAMS: Diagram[] = [
   CS -. failure .-> D[Dead-letter list]
   N[Nightly job] -- compare and repair --> I`,
   },
+  {
+    id: "dg-enterprise",
+    title: "Enterprise overview",
+    attachedTo: [node("co-group")],
+    mermaid: `flowchart LR
+  G[Northwind Group] --- R[Northwind Retail]
+  G --- L[Northwind Logistics]
+  ERP[ERP & Finance] --> G
+  POS[Point of Sale] --> R
+  SF[Storefront] --> R
+  WMS[Warehouse Management] --> L`,
+  },
+  {
+    id: "dg-bare-metal",
+    title: "Rack to workload placement",
+    attachedTo: [node("rack-fra-a12")],
+    mermaid: `flowchart TB
+  CORE[CORE-01] --- TOR[TOR-A12]
+  TOR --- H5[a12-05]
+  TOR --- H7[a12-07]
+  H5 --> K[k8s-prod worker]
+  H7 --> M[mongo-prod-01]`,
+  },
+  {
+    id: "dg-stock-flow",
+    title: "Warehouse to store replenishment",
+    attachedTo: [node("wh-rotterdam")],
+    mermaid: `flowchart LR
+  WH[Rotterdam] -->|replenish| B[Berlin]
+  WH -->|replenish| M[Munich]
+  H[Hamburg] -->|replenish| P[Paris]`,
+  },
 ];
