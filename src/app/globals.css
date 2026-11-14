@@ -257,7 +257,24 @@ html[data-device="mobile"] body,
 html[data-device="tablet"] body { overscroll-behavior: none; }
 /* The toolbar carries every action, so the tiny corner chips are display-only on touch screens. */
 html[data-device="mobile"] .node-chip,
-html[data-device="tablet"] .node-chip { pointer-events: none; }
+html[data-device="tablet"] .node-chip {
+  min-width: 30px;
+  min-height: 28px;
+  justify-content: center;
+  padding: 4px 6px;
+  touch-action: manipulation;
+}
+.node-grip { touch-action: none; cursor: grab; }
+/* Touch action row keeps a constant on-screen size whatever the zoom. */
+.touch-row {
+  transform-origin: top center;
+  translate: -50% 6px;
+  scale: clamp(1, calc(1 / var(--zoom, 1)), 4);
+}
+html[data-device="mobile"] [data-open="true"] .node-grip,
+html[data-device="tablet"] [data-open="true"] .node-grip {
+  scale: clamp(1, calc(1 / var(--zoom, 1)), 3);
+}
 /* Comfortable touch targets for the node toolbar and the opened-box header buttons. */
 html[data-device="mobile"] .react-flow__node-toolbar button,
 html[data-device="tablet"] .react-flow__node-toolbar button { width: 2.5rem; height: 2.5rem; }

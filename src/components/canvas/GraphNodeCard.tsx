@@ -11,6 +11,7 @@ import {
   CornerDownRight,
   Crosshair,
   Expand,
+  GripHorizontal,
   Highlighter,
   Maximize2,
   Minimize2,
@@ -62,7 +63,9 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
       s.motion.anchorId !== v.id,
   );
   const level = useLevel();
-  const vertical = useDevice() === "mobile";
+  const device = useDevice();
+  const vertical = device === "mobile";
+  const touch = device !== "desktop";
   const lite = useLite();
   const [hover, setHover] = useState(false);
   const lit = useContext(HighlightContext);
@@ -200,6 +203,15 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
           {vertical && (
             <Handle id="tin" type="target" position={Position.Top} />
           )}
+          {touch && (
+            <span
+              className="node-grip nopan absolute -top-3.5 left-1/2 z-10 flex h-7 w-10 -translate-x-1/2 items-center justify-center rounded-full border border-line bg-panel text-muted shadow-[var(--shadow)]"
+              title="Hold and drag to move"
+              aria-label="Hold and drag to move"
+            >
+              <GripHorizontal size={16} />
+            </span>
+          )}
           <div
             className="flex items-center gap-2 px-3 pt-2"
             style={{ height: 46 }}
@@ -272,7 +284,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                     : 0.7
                   : 1,
           }}
-          className={`group/node flex flex-col items-center transition-opacity duration-300 ${data.fresh ? "node-pop" : ""}`}
+          className={`group/node flex flex-col items-center transition-opacity duration-300 ${touch ? "relative" : ""} ${data.fresh ? "node-pop" : ""}`}
           data-node-id={v.id}
           data-kind={v.kind}
           data-role={v.role}
@@ -424,9 +436,87 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               </>
             )}
           </div>
+          {touch && selected && !ghost && (
+            <div className="touch-row nopan absolute left-1/2 top-full z-20 flex items-center gap-1 rounded-xl border border-line bg-panel p-1 shadow-[var(--shadow)]">
+              <span
+                className="node-grip nopan flex h-9 w-9 items-center justify-center rounded-lg bg-panel2 text-ink"
+                title="Hold and drag to move"
+                aria-label="Hold and drag to move"
+              >
+                <GripHorizontal size={18} />
+              </span>
+              <TouchBtn
+                label="Details"
+                active={detailsOpen}
+                onClick={() => toggleDetails(v.id)}
+              >
+                <Orbit size={17} />
+              </TouchBtn>
+              <TouchBtn
+                label="Highlight relations"
+                active={highlighted}
+                onClick={() => toggleHighlight(v.id)}
+              >
+                <Highlighter size={17} />
+              </TouchBtn>
+              {canExpand && (
+                <TouchBtn
+                  label={expanded ? "Collapse neighbours" : "Expand neighbours"}
+                  active={expanded}
+                  onClick={() => toggleExpanded(v.id)}
+                >
+                  {expanded ? <Shrink size={17} /> : <Expand size={17} />}
+                </TouchBtn>
+              )}
+              {canOpen && (
+                <TouchBtn
+                  label={v.open ? "Close in place" : "Open in place"}
+                  active={v.open}
+                  onClick={() => toggleOpen(v.id)}
+                >
+                  {v.open ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+                </TouchBtn>
+              )}
+              {canGoInside && (
+                <TouchBtn
+                  label="Go inside"
+                  onClick={() => void drillInto(v.id)}
+                >
+                  <CornerDownRight size={17} />
+                </TouchBtn>
+              )}
+            </div>
+          )}
         </div>
       )}
     </>
+  );
+}
+
+function TouchBtn({
+  label,
+  onClick,
+  active,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`nodrag nopan flex h-9 w-9 items-center justify-center rounded-lg ${active ? "bg-accent text-white" : "bg-panel2 text-ink"}`}
+    >
+      {children}
+    </button>
   );
 }
 

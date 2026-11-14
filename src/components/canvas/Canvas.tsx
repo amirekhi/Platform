@@ -136,7 +136,12 @@ export function Canvas({ tab }: { tab: Tab }) {
 type AnyNode = GraphFlowNode | DetailFlowNode;
 type AnyEdge = RelationFlowEdge | ContainmentFlowEdge | Edge;
 
-function build(view: GraphView, open: Set<Id>, vertical: boolean) {
+function build(
+  view: GraphView,
+  open: Set<Id>,
+  vertical: boolean,
+  touch: boolean,
+) {
   const { pos, size } = computeLayout(view, open, vertical);
   const nodes: AnyNode[] = [];
   const edges: AnyEdge[] = [];
@@ -160,6 +165,8 @@ function build(view: GraphView, open: Set<Id>, vertical: boolean) {
       ...(box
         ? { width: box.w, height: box.h, className: "is-box", zIndex: depth }
         : { zIndex: depth + 10 }),
+      // On touch devices a node moves only by its grip, so panning never drags one by accident.
+      ...(touch ? { dragHandle: ".node-grip" } : {}),
       data: { view: v, box },
     } as GraphFlowNode);
     for (const c of kids.get(v.id) ?? []) emit(c, depth + 1);
@@ -275,8 +282,14 @@ function Flow({
   const device = useDevice();
   const vertical = device === "mobile";
   const built = useMemo(
-    () => build(view, new Set(openKey ? openKey.split(",") : []), vertical),
-    [view, openKey, vertical],
+    () =>
+      build(
+        view,
+        new Set(openKey ? openKey.split(",") : []),
+        vertical,
+        device !== "desktop",
+      ),
+    [view, openKey, vertical, device],
   );
 
   // Nodes live in state so dragging works. When the build changes (an expansion,
@@ -455,10 +468,31 @@ function Flow({
     <HighlightContext.Provider value={lit}>
       <ReactFlow
         onlyRenderVisibleElements
-        nodesDraggable={device === "desktop"}
+        nodesDraggable
         nodes={nodes}
         edges={built.edges}
         onNodesChange={onNodesChange}
+        onInit={(rf) => {
+          if (device !== "desktop")
+            document.documentElement.style.setProperty(
+              "--zoom",
+              String(rf.getZoom()),
+            );
+        }}
+        onMoveEnd={(_, vp) => {
+          if (device !== "desktop")
+            document.documentElement.style.setProperty(
+              "--zoom",
+              String(vp.zoom),
+            );
+        }}
+        onMove={(_, vp) => {
+          if (device !== "desktop")
+            document.documentElement.style.setProperty(
+              "--zoom",
+              String(vp.zoom),
+            );
+        }}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={(_, n) => {
