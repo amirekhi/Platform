@@ -84,7 +84,6 @@ export class FixtureDataSource implements DataSource {
         fuzzy: 0.2,
       },
     });
-    this.buildIndex();
   }
 
   /* ---------------- Nodes ---------------- */
@@ -446,6 +445,14 @@ export class FixtureDataSource implements DataSource {
 
   /* ---------------- Search ---------------- */
 
+  private indexReady = false;
+  /** The search index is built on the first search, not at start-up. */
+  private ensureIndex() {
+    if (this.indexReady) return;
+    this.indexReady = true;
+    this.buildIndex();
+  }
+
   private buildIndex() {
     const docs: IndexDoc[] = [];
     const nameOf = (id: Id) => this.nodes.get(id)?.name ?? id;
@@ -511,6 +518,7 @@ export class FixtureDataSource implements DataSource {
   async search(query: string, opts: SearchOptions = {}): Promise<SearchHit[]> {
     const q = query.trim();
     if (!q) return [];
+    this.ensureIndex();
     const types = opts.types?.length ? new Set(opts.types) : null;
     const kinds = opts.kinds?.length ? new Set<string>(opts.kinds) : null;
     // Choosing a node kind narrows the results to nodes of that kind.

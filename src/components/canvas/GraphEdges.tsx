@@ -12,7 +12,7 @@ import { ArrowUpFromLine, FileText } from "lucide-react";
 import { memo } from "react";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { RelationView } from "@/domain/types";
-import { useApp } from "@/state/store";
+import { useApp, useLite } from "@/state/store";
 import { useLevel } from "./lod";
 
 export type RelationEdgeData = {
@@ -42,6 +42,7 @@ function RelationEdgeImpl({
   });
   const select = useApp((s) => s.select);
   const level = useLevel();
+  const lite = useLite();
   // After expanding a node, its connections stay bright and everything else recedes.
   const hl = useApp(
     (s) => s.tabs.find((t) => t.id === s.activeTabId)?.highlightIds,
@@ -83,7 +84,9 @@ function RelationEdgeImpl({
         path={path}
         markerEnd={markerEnd}
         interactionWidth={18}
-        className={def.async && !derived ? "edge-async" : undefined}
+        className={
+          def.async && !derived && level > 0 && !lite ? "edge-async" : undefined
+        }
         style={{
           stroke: def.color,
           strokeWidth: selected ? 3.6 : lit ? 3 : derived ? 2.2 : 1.6,

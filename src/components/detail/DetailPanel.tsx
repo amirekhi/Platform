@@ -11,7 +11,7 @@ import { KindIcon } from "../icons";
 import { MonitoringPane } from "./MonitoringPane";
 import { DiagramsPane, DocsPane, Empty, NodeChip, PropsTable, SectionTitle } from "./parts";
 
-export function DetailPanel({ tab }: { tab: Tab }) {
+export function DetailPanel({ tab, onClose }: { tab: Tab; onClose?: () => void }) {
   const setDetailOpen = useApp((s) => s.setDetailOpen);
   const sel = tab.selection;
 
@@ -19,7 +19,7 @@ export function DetailPanel({ tab }: { tab: Tab }) {
     <aside className="flex h-full w-full flex-col border-l border-line bg-panel" aria-label="Details">
       <button
         type="button"
-        onClick={() => setDetailOpen(false)}
+        onClick={() => (onClose ? onClose() : setDetailOpen(false))}
         className="absolute right-3 top-3 z-10 rounded-md p-1 text-muted hover:bg-panel2 hover:text-ink"
         aria-label="Close details"
         title="Close details"

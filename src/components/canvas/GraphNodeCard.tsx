@@ -18,10 +18,11 @@ import {
   Shrink,
   SquareArrowOutUpRight,
 } from "lucide-react";
-import { createContext, memo, useContext } from "react";
+import { useDevice } from "@/lib/useDevice";
+import { createContext, memo, useContext, useState } from "react";
 import { HEALTH_COLOR, LIFECYCLE_LABEL, NODE_KINDS } from "@/domain/registry";
 import type { NodeView } from "@/domain/types";
-import { useApp } from "@/state/store";
+import { useApp, useLite } from "@/state/store";
 import { KindIcon } from "../icons";
 import { KindShape } from "../shapes";
 import { NODE_H, NODE_W, RING, SHAPE } from "./layout";
@@ -61,6 +62,9 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
       s.motion.anchorId !== v.id,
   );
   const level = useLevel();
+  const vertical = useDevice() === "mobile";
+  const lite = useLite();
+  const [hover, setHover] = useState(false);
   const lit = useContext(HighlightContext);
   const receded = lit !== null && !lit.has(v.id);
   const highlighted = useApp(
@@ -84,6 +88,9 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   const canGoInside = v.childCount > 0 && !ghost;
   const canExpand = !ghost && (v.externalCount > 0 || expanded);
 
+  // Overview draws no text, except for what you are working with or pointing at.
+  const showLabel =
+    level > 0 || selected || highlighted || isRoot || expanded || hover;
   const canOpen = canGoInside && v.role !== "ghost";
   const glow = selected ? kind.color : isRoot ? "var(--accent)" : null;
 
@@ -190,6 +197,9 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
           <Handle id="r" type="source" position={Position.Right} />
           <Handle id="top" type="source" position={Position.Top} />
           <Handle id="bottom" type="source" position={Position.Bottom} />
+          {vertical && (
+            <Handle id="tin" type="target" position={Position.Top} />
+          )}
           <div
             className="flex items-center gap-2 px-3 pt-2"
             style={{ height: 46 }}
@@ -266,15 +276,20 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
           data-node-id={v.id}
           data-kind={v.kind}
           data-role={v.role}
+          onMouseEnter={() => level === 0 && setHover(true)}
+          onMouseLeave={() => setHover(false)}
         >
           <div
             className="relative shrink-0 transition-[filter] duration-200"
             style={{
               width: SHAPE,
               height: SHAPE,
-              filter: glow
-                ? `drop-shadow(0 0 7px ${glow}aa)`
-                : "drop-shadow(0 1px 2px rgb(0 0 0 / 0.25))",
+              // Glow only for what is selected or highlighted; a filter on every node is costly.
+              filter:
+                glow && !lite ? `drop-shadow(0 0 7px ${glow}aa)` : undefined,
+              outline: glow && lite ? `2px solid ${glow}` : undefined,
+              outlineOffset: 3,
+              borderRadius: 14,
             }}
           >
             <KindShape
@@ -293,6 +308,9 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             <Handle id="r" type="source" position={Position.Right} />
             <Handle id="top" type="source" position={Position.Top} />
             <Handle id="bottom" type="source" position={Position.Bottom} />
+            {vertical && (
+              <Handle id="tin" type="target" position={Position.Top} />
+            )}
 
             {showHealth && (
               <span
@@ -325,7 +343,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 }}
                 onDoubleClick={(e) => e.stopPropagation()}
                 title={`Go inside: ${v.childCount} nodes`}
-                className="nodrag nopan absolute -bottom-1.5 -right-2.5 flex items-center gap-0.5 rounded-md border border-line bg-panel px-1 py-px text-[10.5px] font-semibold text-accent hover:brightness-110"
+                className="node-chip nodrag nopan absolute -bottom-1.5 -right-2.5 flex items-center gap-0.5 rounded-md border border-line bg-panel px-1 py-px text-[10.5px] font-semibold text-accent hover:brightness-110"
               >
                 <CornerDownRight size={10} /> {v.childCount}
               </button>
@@ -339,7 +357,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 }}
                 onDoubleClick={(e) => e.stopPropagation()}
                 title={`Open in place: show its ${v.childCount} contents here, stay on this level`}
-                className="nodrag nopan absolute -bottom-1.5 left-1/2 flex -translate-x-1/2 items-center rounded-md border border-line bg-panel px-1 py-px text-muted hover:text-accent hover:brightness-110"
+                className="node-chip nodrag nopan absolute -bottom-1.5 left-1/2 flex -translate-x-1/2 items-center rounded-md border border-line bg-panel px-1 py-px text-muted hover:text-accent hover:brightness-110"
               >
                 <Maximize2 size={10} />
               </button>
@@ -357,7 +375,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                     ? "Collapse its neighbours"
                     : `Expand: ${v.externalCount} connections reach beyond this view`
                 }
-                className={`nodrag nopan absolute -bottom-1.5 -left-2.5 flex items-center gap-0.5 rounded-md border px-1 py-px text-[10.5px] font-semibold hover:brightness-110 ${
+                className={`node-chip nodrag nopan absolute -bottom-1.5 -left-2.5 flex items-center gap-0.5 rounded-md border px-1 py-px text-[10.5px] font-semibold hover:brightness-110 ${
                   expanded
                     ? "border-accent bg-accent text-white"
                     : "border-line bg-panel text-muted"
@@ -371,37 +389,39 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
 
           {/* Overview hides the text, except for what you are working with or pointing at. */}
           <div
-            className={`mt-1.5 w-full text-center transition-opacity duration-200 ${
-              level === 0 && !selected && !highlighted && !isRoot && !expanded
-                ? "opacity-0 group-hover/node:opacity-100"
-                : ""
-            }`}
+            className="mt-1.5 w-full text-center"
+            style={{ minHeight: showLabel ? undefined : 34 }}
           >
-            <div
-              className="line-clamp-2 text-[12px] font-semibold leading-tight text-ink"
-              title={v.name}
-            >
-              {v.name}
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 text-[10.5px] leading-tight text-muted">
-              <span>{ghost ? "outside this level" : kind.label}</span>
-              {v.lifecycle !== "active" && (
-                <Pill>{LIFECYCLE_LABEL[v.lifecycle].toLowerCase()}</Pill>
-              )}
-            </div>
-            {level === 2 && !ghost && (
-              <div className="mt-0.5 space-y-px text-[10px] leading-tight text-muted">
-                {v.details.monitoring?.headline && (
-                  <div className="font-medium text-ink">
-                    {v.details.monitoring.headline.label}{" "}
-                    {Math.round(v.details.monitoring.headline.value * 10) / 10}
-                    {v.details.monitoring.headline.unit}
+            {showLabel && (
+              <>
+                <div
+                  className="line-clamp-2 text-[12px] font-semibold leading-tight text-ink"
+                  title={v.name}
+                >
+                  {v.name}
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 text-[10.5px] leading-tight text-muted">
+                  <span>{ghost ? "outside this level" : kind.label}</span>
+                  {v.lifecycle !== "active" && (
+                    <Pill>{LIFECYCLE_LABEL[v.lifecycle].toLowerCase()}</Pill>
+                  )}
+                </div>
+                {level === 2 && !ghost && (
+                  <div className="mt-0.5 space-y-px text-[10px] leading-tight text-muted">
+                    {v.details.monitoring?.headline && (
+                      <div className="font-medium text-ink">
+                        {v.details.monitoring.headline.label}{" "}
+                        {Math.round(v.details.monitoring.headline.value * 10) /
+                          10}
+                        {v.details.monitoring.headline.unit}
+                      </div>
+                    )}
+                    {v.details.owner && (
+                      <div className="truncate">{v.details.owner.name}</div>
+                    )}
                   </div>
                 )}
-                {v.details.owner && (
-                  <div className="truncate">{v.details.owner.name}</div>
-                )}
-              </div>
+              </>
             )}
           </div>
         </div>

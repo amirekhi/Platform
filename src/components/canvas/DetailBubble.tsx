@@ -8,7 +8,10 @@ import { useApp } from "@/state/store";
 import type { DetailCategory, DetailKey } from "./details";
 import { CIRCLE, DETAIL_H, DETAIL_W } from "./layout";
 
-export type DetailBubbleData = { nodeId: Id; cat: DetailCategory } & Record<string, unknown>;
+export type DetailBubbleData = { nodeId: Id; cat: DetailCategory } & Record<
+  string,
+  unknown
+>;
 export type DetailFlowNode = Node<DetailBubbleData, "detail">;
 
 const ICONS: Record<DetailKey, typeof Info> = {
@@ -25,12 +28,20 @@ function DetailBubbleImpl({ data }: NodeProps<DetailFlowNode>) {
   const Icon = ICONS[cat.key];
   const active = useApp((s) => {
     const t = s.tabs.find((x) => x.id === s.activeTabId);
-    return t?.selection?.type === "node" && t.selection.id === nodeId && t.detailTab === cat.tab;
+    return (
+      t?.selection?.type === "node" &&
+      t.selection.id === nodeId &&
+      t.detailTab === cat.tab
+    );
   });
   const select = useApp((s) => s.select);
 
   return (
-    <div style={{ width: DETAIL_W, height: DETAIL_H }} className="bubble-pop flex flex-col items-center" data-detail={cat.key}>
+    <div
+      style={{ width: DETAIL_W, height: DETAIL_H }}
+      className="bubble-pop flex flex-col items-center"
+      data-detail={cat.key}
+    >
       <Handle id="t" type="target" position={Position.Top} />
       <Handle id="b" type="target" position={Position.Bottom} />
       <button
@@ -49,7 +60,9 @@ function DetailBubbleImpl({ data }: NodeProps<DetailFlowNode>) {
           height: CIRCLE,
           borderColor: cat.color,
           background: active ? `${cat.color}2e` : undefined,
-          boxShadow: active ? `0 0 0 3px ${cat.color}44, var(--shadow)` : undefined,
+          boxShadow: active
+            ? `0 0 0 3px ${cat.color}44, var(--shadow)`
+            : undefined,
           color: cat.color,
         }}
       >
@@ -58,7 +71,9 @@ function DetailBubbleImpl({ data }: NodeProps<DetailFlowNode>) {
           {cat.count !== undefined ? cat.count : cat.text}
         </span>
       </button>
-      <span className="mt-0.5 max-w-full truncate text-[10px] leading-tight text-muted">{cat.label}</span>
+      <span className="mt-0.5 max-w-full truncate text-[10px] leading-tight text-muted">
+        {cat.label}
+      </span>
     </div>
   );
 }

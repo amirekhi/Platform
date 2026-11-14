@@ -63,6 +63,18 @@ export interface Motion {
 export const prefersReducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+/** Performance setting. Auto switches to lite by itself if this device looks slow. */
+export type PerfMode = "auto" | "full" | "lite";
+
+/** True when animations and effects should be skipped (lite mode, or the OS asks for less motion). */
+export const motionOff = () => {
+  const s = useApp.getState();
+  return prefersReducedMotion() || s.perfMode === "lite" || (s.perfMode === "auto" && s.autoLite);
+};
+
+/** Hook form: is lite mode in force? */
+export const useLite = () => useApp((s) => s.perfMode === "lite" || (s.perfMode === "auto" && s.autoLite));
+
 export const currentScope = (t: Tab): Scope => t.path[t.path.length - 1];
 export const tabTitle = (t: Tab): string => currentScope(t).label;
 
@@ -80,9 +92,14 @@ interface AppState {
   explorerOpen: boolean;
   detailOpen: boolean;
   motion: Motion | null;
+  perfMode: PerfMode;
+  /** Set when the app measured slow frames while in auto mode. */
+  autoLite: boolean;
   /** Zoom at which the current view fits the screen. Auto detail is measured relative to it. */
   fitZoom: number | null;
 
+  setPerfMode: (mode: PerfMode) => void;
+  setAutoLite: (on: boolean) => void;
   setSearchOpen: (open: boolean) => void;
   toggleExplorer: () => void;
   setDetailOpen: (open: boolean) => void;
@@ -184,8 +201,17 @@ export const useApp = create<AppState>((set, get) => ({
   explorerOpen: true,
   detailOpen: true,
   motion: null,
+  perfMode: "auto",
+  autoLite: false,
   fitZoom: null,
 
+  setPerfMode: (mode) => {
+    set({ perfMode: mode, autoLite: mode === "auto" ? get().autoLite : false });
+    try {
+      localStorage.setItem("eco.perf", mode);
+    } catch {}
+  },
+  setAutoLite: (on) => set({ autoLite: on }),
   setSearchOpen: (open) => set({ searchOpen: open }),
   toggleExplorer: () => set((s) => ({ explorerOpen: !s.explorerOpen })),
   setDetailOpen: (open) => set({ detailOpen: open }),
@@ -259,7 +285,7 @@ export const useApp = create<AppState>((set, get) => ({
     const scope: Scope = { rootId: id, mode: "inside", label };
     if (sameScope(currentScope(tab), scope)) return;
     // Lead-in: zoom into the node while the rest fades, then swap the view.
-    if (!prefersReducedMotion()) {
+    if (!motionOff()) {
       announce({ kind: "enter", phase: "out", anchorId: id, tabId: tab.id });
       await sleep(380);
     }

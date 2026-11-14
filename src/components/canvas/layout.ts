@@ -61,7 +61,7 @@ export interface LayoutResult {
  * then placed as one node among its siblings. Nodes with expanded details reserve extra
  * room so their circles never collide with neighbours.
  */
-export function computeLayout(view: GraphView, openDetails: Set<string>): LayoutResult {
+export function computeLayout(view: GraphView, openDetails: Set<string>, vertical = false): LayoutResult {
   const byId = new Map(view.nodes.map((n) => [n.id, n]));
   const kids = new Map<string | null, string[]>();
   for (const n of view.nodes) {
@@ -85,7 +85,7 @@ export function computeLayout(view: GraphView, openDetails: Set<string>): Layout
   const layoutGroup = (ids: string[]): { w: number; h: number } => {
     const group = new Set(ids);
     const g = new graphlib.Graph({ multigraph: true });
-    g.setGraph({ rankdir: "LR", nodesep: 28, ranksep: 96, marginx: 0, marginy: 0 });
+    g.setGraph({ rankdir: vertical ? "TB" : "LR", nodesep: 28, ranksep: vertical ? 84 : 96, marginx: 0, marginy: 0 });
     g.setDefaultEdgeLabel(() => ({}));
     const boxes = new Map<string, { w: number; h: number }>();
     for (const id of ids) {

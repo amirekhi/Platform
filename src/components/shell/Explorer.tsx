@@ -11,11 +11,18 @@ import { KindIcon } from "../icons";
 
 export function Explorer() {
   const openLandscape = useApp((s) => s.openLandscape);
-  const { data: roots } = useAsync("explorer-roots", () => getDataSource().getRootNodes());
-  const { data: teams } = useAsync("explorer-teams", () => getDataSource().getNodesByKind("team"));
+  const { data: roots } = useAsync("explorer-roots", () =>
+    getDataSource().getRootNodes(),
+  );
+  const { data: teams } = useAsync("explorer-teams", () =>
+    getDataSource().getNodesByKind("team"),
+  );
 
   return (
-    <nav aria-label="Explorer" className="flex h-full flex-col overflow-y-auto border-r border-line bg-panel px-2 py-3">
+    <nav
+      aria-label="Explorer"
+      className="flex h-full flex-col overflow-y-auto border-r border-line bg-panel px-2 py-3"
+    >
       <button
         type="button"
         onClick={() => void openLandscape()}
@@ -23,15 +30,25 @@ export function Explorer() {
       >
         <Home size={14} className="text-muted" /> Enterprise
       </button>
-      <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Organisation</div>
-      {roots?.filter((r) => r.kind !== "system").map((r) => (
-        <TreeNode key={r.id} node={r} depth={0} />
-      ))}
-      <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Software systems</div>
-      {roots?.filter((r) => r.kind === "system").map((r) => (
-        <TreeNode key={r.id} node={r} depth={0} />
-      ))}
-      <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">Teams</div>
+      <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        Organisation
+      </div>
+      {roots
+        ?.filter((r) => r.kind !== "system")
+        .map((r) => (
+          <TreeNode key={r.id} node={r} depth={0} />
+        ))}
+      <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        Software systems
+      </div>
+      {roots
+        ?.filter((r) => r.kind === "system")
+        .map((r) => (
+          <TreeNode key={r.id} node={r} depth={0} />
+        ))}
+      <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        Teams
+      </div>
       {teams?.map((t) => (
         <TreeNode key={t.id} node={t} depth={0} leaf />
       ))}
@@ -39,15 +56,24 @@ export function Explorer() {
   );
 }
 
-function TreeNode({ node, depth, leaf = false }: { node: GraphNode; depth: number; leaf?: boolean }) {
+function TreeNode({
+  node,
+  depth,
+  leaf = false,
+}: {
+  node: GraphNode;
+  depth: number;
+  leaf?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const openNode = useApp((s) => s.openNode);
   const activeRoot = useApp((s) => {
     const t = s.tabs.find((x) => x.id === s.activeTabId);
     return t ? currentScope(t).rootId : null;
   });
-  const { data: children } = useAsync(`children:${node.id}:${open}`, async () =>
-    open && !leaf ? getDataSource().getChildren(node.id) : [],
+  const { data: children } = useAsync(
+    `children:${node.id}:${open}`,
+    async () => (open && !leaf ? getDataSource().getChildren(node.id) : []),
   );
   const kind = NODE_KINDS[node.kind];
   const hasChildren = !leaf && node.kind !== "table" && node.kind !== "team";
@@ -79,7 +105,10 @@ function TreeNode({ node, depth, leaf = false }: { node: GraphNode; depth: numbe
           <span className="truncate">{node.name}</span>
         </button>
       </div>
-      {open && children?.map((c) => <TreeNode key={c.id} node={c} depth={depth + 1} />)}
+      {open &&
+        children?.map((c) => (
+          <TreeNode key={c.id} node={c} depth={depth + 1} />
+        ))}
     </div>
   );
 }

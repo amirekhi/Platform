@@ -16,7 +16,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { prefersReducedMotion } from "@/state/store";
+import { useDevice } from "@/lib/useDevice";
+import { useLite, prefersReducedMotion } from "@/state/store";
 import { getDataSource } from "@/data";
 import { NODE_KINDS, RELATION_TYPES } from "@/domain/registry";
 import type { GraphView, Id } from "@/domain/types";
@@ -135,8 +136,8 @@ export function Canvas({ tab }: { tab: Tab }) {
 type AnyNode = GraphFlowNode | DetailFlowNode;
 type AnyEdge = RelationFlowEdge | ContainmentFlowEdge | Edge;
 
-function build(view: GraphView, open: Set<Id>) {
-  const { pos, size } = computeLayout(view, open);
+function build(view: GraphView, open: Set<Id>, vertical: boolean) {
+  const { pos, size } = computeLayout(view, open, vertical);
   const nodes: AnyNode[] = [];
   const edges: AnyEdge[] = [];
 
@@ -215,9 +216,9 @@ function build(view: GraphView, open: Set<Id>) {
       id: `c:${c.parentId}:${c.childId}`,
       type: "containment",
       source: c.parentId,
-      sourceHandle: "r",
+      sourceHandle: vertical ? "bottom" : "r",
       target: c.childId,
-      targetHandle: "l",
+      targetHandle: vertical ? "tin" : "l",
       selectable: false,
       focusable: false,
       data: {},
@@ -231,9 +232,9 @@ function build(view: GraphView, open: Set<Id>) {
       id: r.id,
       type: "relation",
       source: r.sourceId,
-      sourceHandle: "r",
+      sourceHandle: vertical ? "bottom" : "r",
       target: r.targetId,
-      targetHandle: "l",
+      targetHandle: vertical ? "tin" : "l",
       data: { rel: r, index: idx, total: pairCount.get(k) ?? 1 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
@@ -270,9 +271,12 @@ function Flow({
         .join(","),
     [view, detailsOpen],
   );
+  // Phones lay the graph out top to bottom to use the tall screen.
+  const device = useDevice();
+  const vertical = device === "mobile";
   const built = useMemo(
-    () => build(view, new Set(openKey ? openKey.split(",") : [])),
-    [view, openKey],
+    () => build(view, new Set(openKey ? openKey.split(",") : []), vertical),
+    [view, openKey, vertical],
   );
 
   // Nodes live in state so dragging works. When the build changes (an expansion,
@@ -314,7 +318,10 @@ function Flow({
   useEffect(() => {
     nodesRef.current = nodes;
   });
-  const reduced = prefersReducedMotion();
+  const lite = useLite();
+  // Small screens must be able to fit the whole view; desktop keeps its original limit.
+  const fitMin = device === "desktop" ? 0.4 : 0.05;
+  const reduced = prefersReducedMotion() || lite;
   if (prevBuilt !== built) {
     setPrevBuilt(built);
     if (reduced) {
@@ -348,6 +355,10 @@ function Flow({
       return;
     }
     if (reduced) return;
+    if (built.nodes.length > 90) {
+      setNodes(built.nodes);
+      return;
+    }
     const target = new Map(
       built.nodes
         .filter((n) => n.type === "graph")
@@ -365,6 +376,8 @@ function Flow({
           const to = target.get(n.id);
           const f = from.get(n.id);
           if (!to || !f) return n;
+          // Nodes that do not move keep their object, so nothing re-renders for them.
+          if (f.x === to.x && f.y === to.y) return n;
           return {
             ...n,
             position: { x: f.x + (to.x - f.x) * e, y: f.y + (to.y - f.y) * e },
@@ -410,12 +423,12 @@ function Flow({
       { x: x1, y: y1, width: x2 - x1, height: y2 - y1 },
       width,
       height,
-      0.4,
+      fitMin,
       1,
       0.18,
     );
     useApp.setState({ fitZoom: vp.zoom });
-  }, [built, width, height]);
+  }, [built, width, height, fitMin]);
   useEffect(() => () => useApp.setState({ fitZoom: null }), []);
 
   // Re-frame once the layout has settled after any change of what is shown.
@@ -429,18 +442,20 @@ function Flow({
       () =>
         void fitView({
           padding: 0.15,
-          minZoom: 0.4,
+          minZoom: fitMin,
           maxZoom: 1,
           duration: 300,
         }),
       reduced ? 60 : 450,
     );
     return () => clearTimeout(t);
-  }, [built, fitView, reduced]);
+  }, [built, fitView, reduced, fitMin]);
 
   return (
     <HighlightContext.Provider value={lit}>
       <ReactFlow
+        onlyRenderVisibleElements
+        nodesDraggable={device === "desktop"}
         nodes={nodes}
         edges={built.edges}
         onNodesChange={onNodesChange}
@@ -455,8 +470,8 @@ function Flow({
         onPaneClick={() => select(null)}
         zoomOnDoubleClick={false}
         fitView
-        fitViewOptions={{ padding: 0.18, minZoom: 0.4, maxZoom: 1 }}
-        minZoom={0.15}
+        fitViewOptions={{ padding: 0.18, minZoom: fitMin, maxZoom: 1 }}
+        minZoom={device === "desktop" ? 0.15 : 0.05}
         maxZoom={2.6}
         nodesConnectable={false}
         elementsSelectable={false}
@@ -471,18 +486,20 @@ function Flow({
           color="var(--canvas-dot)"
         />
         <Controls showInteractive={false} position="bottom-left" />
-        <MiniMap
-          pannable
-          zoomable
-          position="bottom-right"
-          nodeColor={(n) => {
-            const v = (n.data as { view?: { kind: keyof typeof NODE_KINDS } })
-              .view;
-            return v ? NODE_KINDS[v.kind].color : "transparent";
-          }}
-          maskColor="rgba(0,0,0,0.12)"
-          style={{ width: 150, height: 100 }}
-        />
+        {!lite && device === "desktop" && (
+          <MiniMap
+            pannable
+            zoomable
+            position="bottom-right"
+            nodeColor={(n) => {
+              const v = (n.data as { view?: { kind: keyof typeof NODE_KINDS } })
+                .view;
+              return v ? NODE_KINDS[v.kind].color : "transparent";
+            }}
+            maskColor="rgba(0,0,0,0.12)"
+            style={{ width: 150, height: 100 }}
+          />
+        )}
       </ReactFlow>
     </HighlightContext.Provider>
   );

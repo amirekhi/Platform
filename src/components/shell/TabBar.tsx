@@ -15,7 +15,11 @@ export function TabBar() {
   const setSearchOpen = useApp((s) => s.setSearchOpen);
 
   return (
-    <div role="tablist" aria-label="Open views" className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto pr-2">
+    <div
+      role="tablist"
+      aria-label="Open views"
+      className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto pr-2"
+    >
       {tabs.map((t) => {
         const active = t.id === activeId;
         return (
@@ -24,11 +28,21 @@ export function TabBar() {
             role="tab"
             aria-selected={active}
             className={`group flex max-w-[220px] shrink-0 items-center gap-1.5 rounded-t-lg border border-b-0 px-3 py-1.5 text-[12.5px] ${
-              active ? "border-line bg-bg font-medium text-ink" : "border-transparent text-muted hover:bg-panel2"
+              active
+                ? "border-line bg-bg font-medium text-ink"
+                : "border-transparent text-muted hover:bg-panel2"
             }`}
           >
-            <button type="button" onClick={() => activate(t.id)} className="flex min-w-0 items-center gap-1.5">
-              {currentScope(t).rootId ? <TabIcon id={currentScope(t).rootId!} /> : <Home size={13} />}
+            <button
+              type="button"
+              onClick={() => activate(t.id)}
+              className="flex min-w-0 items-center gap-1.5"
+            >
+              {currentScope(t).rootId ? (
+                <TabIcon id={currentScope(t).rootId!} />
+              ) : (
+                <Home size={13} />
+              )}
               <span className="truncate">{tabTitle(t)}</span>
             </button>
             {tabs.length > 1 && (

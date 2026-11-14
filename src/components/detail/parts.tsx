@@ -8,7 +8,13 @@ import type { Diagram, Doc, DocTarget, Id, PropValue } from "@/domain/types";
 import { useAsync } from "@/lib/useAsync";
 import { navigateTo } from "@/state/navigate";
 import { useApp } from "@/state/store";
-import { Markdown } from "../docs/Markdown";
+import dynamic from "next/dynamic";
+
+// Markdown (and its parser) loads only when a document is opened.
+const Markdown = dynamic(() => import("../docs/Markdown").then((m) => m.Markdown), {
+  ssr: false,
+  loading: () => <p className="text-[12px] text-muted">Loading document…</p>,
+});
 import { MermaidView } from "../docs/MermaidView";
 import { KindIcon } from "../icons";
 

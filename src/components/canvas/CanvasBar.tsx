@@ -15,10 +15,12 @@ import {
   Filter,
   Home,
   RotateCcw,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { GraphView, RelationType } from "@/domain/types";
+import { useDevice } from "@/lib/useDevice";
 import { LOD_OPTIONS, useLevel } from "./lod";
 import { currentScope, type Tab, useApp } from "@/state/store";
 
@@ -39,6 +41,8 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
   const collapseAll = useApp((s) => s.collapseAllExpanded);
 
   const [filterOpen, setFilterOpen] = useState(false);
+  const phone = useDevice() === "mobile";
+  const [controlsOpen, setControlsOpen] = useState(false);
   const scope = currentScope(tab);
   const members = useMemo(
     () =>
@@ -65,11 +69,17 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
   }, [counts, tab.hiddenRelationTypes]);
 
   return (
-    <div className="pointer-events-none absolute left-3 right-3 top-3 z-10 flex flex-col items-start gap-2">
+    <div
+      className={`pointer-events-none absolute z-10 flex flex-col items-start gap-2 ${
+        phone ? "left-2 right-2 top-2" : "left-3 right-3 top-3"
+      }`}
+    >
       {/* Level path */}
       <nav
         aria-label="Exploration path"
-        className="pointer-events-auto flex max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-line bg-panel/90 p-1 shadow-[var(--shadow)] backdrop-blur"
+        className={`pointer-events-auto flex max-w-full items-center gap-0.5 rounded-xl border border-line bg-panel/95 p-1 shadow-[var(--shadow)] ${
+          phone ? "flex-nowrap overflow-x-auto" : "flex-wrap"
+        }`}
       >
         <button
           type="button"
@@ -113,10 +123,27 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
             </span>
           );
         })}
+        {phone && (
+          <button
+            type="button"
+            onClick={() => setControlsOpen((o) => !o)}
+            aria-expanded={controlsOpen}
+            aria-label="View controls"
+            className={`ml-1 flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-medium ${
+              controlsOpen ? "bg-accent text-white" : "bg-panel2 text-muted"
+            }`}
+          >
+            <SlidersHorizontal size={13} /> View
+          </button>
+        )}
       </nav>
 
       {/* View controls */}
-      <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-line bg-panel/90 p-1.5 shadow-[var(--shadow)] backdrop-blur">
+      <div
+        className={`pointer-events-auto max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-line bg-panel/95 p-1.5 shadow-[var(--shadow)] ${
+          phone && !controlsOpen ? "hidden" : "flex"
+        }`}
+      >
         {scope.mode === "around" && (
           <div
             role="group"
@@ -321,7 +348,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
       </div>
 
       {view && view.truncated > 0 && (
-        <div className="pointer-events-auto rounded-lg border border-line bg-panel/90 px-2.5 py-1 text-[11.5px] text-muted shadow-[var(--shadow)]">
+        <div className="pointer-events-auto rounded-lg border border-line bg-panel/95 px-2.5 py-1 text-[11.5px] text-muted shadow-[var(--shadow)]">
           {view.truncated} more nodes not shown. Lower the reach to narrow the
           view.
         </div>

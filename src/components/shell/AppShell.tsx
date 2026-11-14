@@ -2,11 +2,14 @@
 
 import { PanelLeft, PanelRight, Search, Waypoints } from "lucide-react";
 import { useEffect } from "react";
+import { useDevice } from "@/lib/useDevice";
+import { CompactShell } from "./CompactShell";
 import { bootApp, useActiveTab, useApp } from "@/state/store";
 import { Canvas } from "../canvas/Canvas";
 import { DetailPanel } from "../detail/DetailPanel";
 import { SearchPalette } from "../search/SearchPalette";
 import { Explorer } from "./Explorer";
+import { PerfMenu } from "./PerfMenu";
 import { TabBar } from "./TabBar";
 
 export function AppShell() {
@@ -17,9 +20,17 @@ export function AppShell() {
   const setDetailOpen = useApp((s) => s.setDetailOpen);
   const setSearchOpen = useApp((s) => s.setSearchOpen);
 
+  const device = useDevice();
   useEffect(() => {
     void bootApp();
   }, []);
+  // CSS for phones and tablets hangs off this attribute; desktop has no rules of its own.
+  useEffect(() => {
+    document.documentElement.dataset.device = device;
+  }, [device]);
+
+  // Phones and tablets get their own layout. The desktop layout below is unchanged.
+  if (device !== "desktop") return <CompactShell tab={tab} device={device} />;
 
   return (
     <div className="flex h-screen flex-col bg-bg text-ink">
@@ -47,8 +58,11 @@ export function AppShell() {
           >
             <Search size={13} />
             <span className="flex-1 text-left">Search everything</span>
-            <kbd className="rounded border border-line px-1 text-[10px]">⌘K</kbd>
+            <kbd className="rounded border border-line px-1 text-[10px]">
+              ⌘K
+            </kbd>
           </button>
+          <PerfMenu />
           <button
             type="button"
             onClick={() => setDetailOpen(!detailOpen)}
@@ -67,7 +81,9 @@ export function AppShell() {
             <Explorer />
           </div>
         )}
-        <main className="relative min-w-0 flex-1">{tab ? <Canvas key={tab.id} tab={tab} /> : null}</main>
+        <main className="relative min-w-0 flex-1">
+          {tab ? <Canvas key={tab.id} tab={tab} /> : null}
+        </main>
         {detailOpen && tab && (
           <div className="relative w-[440px] max-w-[45vw] shrink-0">
             <DetailPanel tab={tab} />

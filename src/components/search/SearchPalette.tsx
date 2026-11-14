@@ -93,7 +93,7 @@ function Palette({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[10vh] backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[10vh] max-sm:px-2 max-sm:pt-[4vh] backdrop-blur-[2px]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -101,7 +101,7 @@ function Palette({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-label="Search"
         onKeyDown={onKeyDown}
-        className="flex max-h-[72vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-[var(--shadow)]"
+        className="flex max-h-[72vh] max-sm:max-h-[80dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-[var(--shadow)]"
       >
         <div className="flex items-center gap-2.5 border-b border-line px-4">
           <Search size={16} className="text-muted" />
