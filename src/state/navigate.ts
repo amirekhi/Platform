@@ -24,7 +24,11 @@ async function currentView(tab: Tab) {
  */
 export async function navigateTo(
   target: DocTarget,
-  opts: { detailTab?: "docs" | "overview"; docId?: Id | null; newTab?: boolean } = {},
+  opts: {
+    detailTab?: "docs" | "overview";
+    docId?: Id | null;
+    newTab?: boolean;
+  } = {},
 ) {
   const app = useApp.getState();
   const tab = app.tabs.find((t) => t.id === app.activeTabId);
@@ -37,10 +41,17 @@ export async function navigateTo(
         if (opts.docId) app.setDocId(opts.docId);
         return;
       }
-      await app.focusNode(target.id, { detailTab: opts.detailTab, docId: opts.docId });
+      await app.focusNode(target.id, {
+        detailTab: opts.detailTab,
+        docId: opts.docId,
+      });
       return;
     }
-    await app.openNode(target.id, { newTab: true, detailTab: opts.detailTab, docId: opts.docId });
+    await app.openNode(target.id, {
+      newTab: true,
+      detailTab: opts.detailTab,
+      docId: opts.docId,
+    });
     return;
   }
 
@@ -54,8 +65,17 @@ export async function navigateTo(
       if (opts.docId) app.setDocId(opts.docId);
       return;
     }
-    await app.focusNode(rel.sourceId, { selection, detailTab: opts.detailTab, docId: opts.docId });
+    await app.focusNode(rel.sourceId, {
+      selection,
+      detailTab: opts.detailTab,
+      docId: opts.docId,
+    });
     return;
   }
-  await app.openNode(rel.sourceId, { newTab: true, selection, detailTab: opts.detailTab, docId: opts.docId });
+  await app.openNode(rel.sourceId, {
+    newTab: true,
+    selection,
+    detailTab: opts.detailTab,
+    docId: opts.docId,
+  });
 }

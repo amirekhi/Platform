@@ -20,11 +20,20 @@ import {
   SquareArrowOutUpRight,
 } from "lucide-react";
 import { useDevice } from "@/lib/useDevice";
-import { createContext, memo, useContext, useState } from "react";
+import {
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { HEALTH_COLOR, LIFECYCLE_LABEL, NODE_KINDS } from "@/domain/registry";
 import type { NodeView } from "@/domain/types";
 import { useApp, useLite } from "@/state/store";
 import { KindIcon } from "../icons";
+import { LENS_BY_ID } from "@/domain/lenses";
+import { LensContext } from "./lensContext";
 import { KindShape } from "../shapes";
 import { NODE_H, NODE_W, RING, SHAPE } from "./layout";
 import { useLevel } from "./lod";
@@ -68,8 +77,22 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   const touch = device !== "desktop";
   const lite = useLite();
   const [hover, setHover] = useState(false);
+  const setHoverNode = useApp((s) => s.setHoverNode);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const lit = useContext(HighlightContext);
+  const lens = useContext(LensContext);
+  const lensCat = lens ? (lens.cat.get(v.id) ?? null) : null;
+  const lensDef = lens ? LENS_BY_ID[lens.id] : null;
+  const isGhost = v.role === "ghost";
+  // With a recolouring lens the shape wears the lens colour; nodes outside the lens look neutral.
+  const tint =
+    lensDef?.tints && !isGhost ? (lensCat?.color ?? "var(--muted)") : undefined;
   const receded = lit !== null && !lit.has(v.id);
+  // A dimming lens (or a picked legend row) lets everything else step back, like heat vision.
+  const lensDim = Boolean(
+    lens?.hot && !lens.hot.has(v.id) && !selected && !isGhost,
+  );
   const highlighted = useApp(
     (s) =>
       s.tabs.find((x) => x.id === s.activeTabId)?.highlightIds.includes(v.id) ??
@@ -104,7 +127,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
         position={Position.Top}
         offset={detailsOpen ? RING + 8 : 8}
       >
-        <div className="flex items-center gap-0.5 rounded-lg border border-line bg-panel p-0.5 shadow-[var(--shadow)]">
+        <div className="pop-in flex items-center gap-0.5 rounded-lg border border-line bg-panel p-0.5 shadow-[var(--shadow)]">
           {!ghost && (
             <ToolButton
               label={detailsOpen ? "Hide details" : "Show details (circles)"}
@@ -193,7 +216,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             boxShadow: glow
               ? `0 0 0 2px ${glow}66, 0 0 14px ${glow}55`
               : "var(--shadow)",
-            opacity: leaving ? 0 : receded ? 0.45 : 1,
+            opacity: leaving ? 0 : lensDim ? 0.16 : receded ? 0.45 : 1,
           }}
         >
           <Handle id="l" type="target" position={Position.Left} />
@@ -228,13 +251,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 {kind.label} · {v.childCount} inside
               </div>
             </div>
-            {showHealth && (
-              <span
-                className="h-3 w-3 shrink-0 rounded-full border-2 border-panel"
-                style={{ background: HEALTH_COLOR[v.health] }}
-                title={`Health: ${v.health}`}
-              />
-            )}
+            {showHealth && <HealthMark v={v} className="shrink-0" />}
             {highlighted && (
               <span
                 className="flex h-4 w-4 items-center justify-center rounded-full bg-accent text-white"
@@ -276,20 +293,35 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             height: NODE_H,
             opacity: leaving
               ? 0
-              : receded
-                ? 0.3
-                : dim
-                  ? ghost
-                    ? 0.6
-                    : 0.7
-                  : 1,
+              : lensDim
+                ? 0.16
+                : receded
+                  ? 0.3
+                  : dim
+                    ? ghost
+                      ? 0.6
+                      : 0.7
+                    : 1,
           }}
           className={`group/node flex flex-col items-center transition-opacity duration-300 ${touch ? "relative" : ""} ${data.fresh ? "node-pop" : ""}`}
           data-node-id={v.id}
           data-kind={v.kind}
           data-role={v.role}
-          onMouseEnter={() => level === 0 && setHover(true)}
-          onMouseLeave={() => setHover(false)}
+          onMouseEnter={(e) => {
+            if (level === 0) setHover(true);
+            if (touch) return;
+            const el = e.currentTarget;
+            window.clearTimeout(hoverTimer.current);
+            hoverTimer.current = window.setTimeout(
+              () => setHoverNode({ view: v, rect: el.getBoundingClientRect() }),
+              380,
+            );
+          }}
+          onMouseLeave={() => {
+            setHover(false);
+            window.clearTimeout(hoverTimer.current);
+            if (useApp.getState().hoverNode) setHoverNode(null);
+          }}
         >
           <div
             className="relative shrink-0 transition-[filter] duration-200"
@@ -309,10 +341,11 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               size={SHAPE}
               dashed={ghost || v.lifecycle === "proposed"}
               accent={isRoot}
+              tint={tint}
             />
             <span
               className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-panel"
-              style={{ color: kind.color }}
+              style={{ color: tint ?? kind.color }}
             >
               <KindIcon kind={v.kind} size={17} />
             </span>
@@ -324,14 +357,17 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               <Handle id="tin" type="target" position={Position.Top} />
             )}
 
-            {showHealth && (
+            {(v.health === "degraded" || v.health === "down") && (
               <span
-                className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-panel"
-                style={{ background: HEALTH_COLOR[v.health] }}
-                title={`Health: ${v.health}`}
-                role="img"
-                aria-label={`Health ${v.health}`}
+                aria-hidden
+                className={`pointer-events-none absolute -inset-1.5 rounded-[20px] border-[3px] ${
+                  v.health === "down" ? "health-pulse" : ""
+                }`}
+                style={{ borderColor: HEALTH_COLOR[v.health] }}
               />
+            )}
+            {showHealth && (
+              <HealthMark v={v} className="absolute -right-2 -top-2" />
             )}
             {highlighted && (
               <span
@@ -402,9 +438,14 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
           {/* Overview hides the text, except for what you are working with or pointing at. */}
           <div
             className="mt-1.5 w-full text-center"
-            style={{ minHeight: showLabel ? undefined : 34 }}
+            style={{
+              minHeight: showLabel ? undefined : 34,
+              // Text fades in and out as you zoom instead of switching on and off.
+              opacity: lite || showLabel ? 1 : 0,
+              transition: lite ? undefined : "opacity 320ms ease",
+            }}
           >
-            {showLabel && (
+            {(lite ? showLabel : true) && (
               <>
                 <div
                   className="line-clamp-2 text-[12px] font-semibold leading-tight text-ink"
@@ -418,8 +459,14 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                     <Pill>{LIFECYCLE_LABEL[v.lifecycle].toLowerCase()}</Pill>
                   )}
                 </div>
-                {level === 2 && !ghost && (
-                  <div className="mt-0.5 space-y-px text-[10px] leading-tight text-muted">
+                {(lite ? level === 2 : true) && !ghost && (
+                  <div
+                    className="mt-0.5 space-y-px text-[10px] leading-tight text-muted"
+                    style={{
+                      opacity: level === 2 ? 1 : 0,
+                      transition: lite ? undefined : "opacity 320ms ease",
+                    }}
+                  >
                     {v.details.monitoring?.headline && (
                       <div className="font-medium text-ink">
                         {v.details.monitoring.headline.label}{" "}
@@ -437,7 +484,11 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             )}
           </div>
           {touch && selected && !ghost && (
-            <div className="touch-row nopan absolute left-1/2 top-full z-20 flex items-center gap-1 rounded-xl border border-line bg-panel p-1 shadow-[var(--shadow)]">
+            <div
+              className="touch-row pop-in nopan absolute left-1/2 top-full z-20 flex w-[132px] flex-wrap items-center justify-center gap-1 rounded-xl border border-line bg-panel p-1 shadow-[var(--shadow)]"
+              // Open detail circles sit above and below the node; the row waits beyond them.
+              style={{ marginTop: detailsOpen ? RING : 0 }}
+            >
               <span
                 className="node-grip nopan flex h-9 w-9 items-center justify-center rounded-lg bg-panel2 text-ink"
                 title="Hold and drag to move"
@@ -490,6 +541,35 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
         </div>
       )}
     </>
+  );
+}
+
+/** Health dot, or a count of problems inside when there are any. */
+function HealthMark({ v, className }: { v: NodeView; className?: string }) {
+  const bad = v.health === "degraded" || v.health === "down";
+  if (v.alertCount > 0) {
+    return (
+      <span
+        className={`flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-panel px-1 text-[10px] font-bold leading-none text-white ${className ?? ""}`}
+        style={{
+          background: bad ? HEALTH_COLOR[v.health] : HEALTH_COLOR.degraded,
+        }}
+        title={`${v.alertCount} ${v.alertCount === 1 ? "problem" : "problems"} here or inside`}
+        role="img"
+        aria-label={`${v.alertCount} problems`}
+      >
+        {v.alertCount}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`h-3 w-3 rounded-full border-2 border-panel ${className ?? ""}`}
+      style={{ background: HEALTH_COLOR[v.health] }}
+      title={`Health: ${v.health}`}
+      role="img"
+      aria-label={`Health ${v.health}`}
+    />
   );
 }
 

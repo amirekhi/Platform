@@ -7,10 +7,26 @@ import { useApp, type DetailMode } from "@/state/store";
 export type LodLevel = 0 | 1 | 2;
 
 export const LOD_OPTIONS: { id: DetailMode; label: string; hint: string }[] = [
-  { id: "auto", label: "Auto", hint: "Follows your zoom: zoom out for the big picture, in for detail" },
-  { id: "overview", label: "Overview", hint: "Shapes and health only, whatever the zoom" },
-  { id: "standard", label: "Standard", hint: "Names and relation labels, whatever the zoom" },
-  { id: "full", label: "Full", hint: "Adds owner and live figures, whatever the zoom" },
+  {
+    id: "auto",
+    label: "Auto",
+    hint: "Follows your zoom: zoom out for the big picture, in for detail",
+  },
+  {
+    id: "overview",
+    label: "Overview",
+    hint: "Shapes and health only, whatever the zoom",
+  },
+  {
+    id: "standard",
+    label: "Standard",
+    hint: "Names and relation labels, whatever the zoom",
+  },
+  {
+    id: "full",
+    label: "Full",
+    hint: "Adds owner and live figures, whatever the zoom",
+  },
 ];
 
 /**
@@ -23,11 +39,17 @@ export const levelOfZoom = (z: number, fit: number | null): LodLevel => {
   const ratio = z / fit;
   return ratio < 1.3 ? 0 : ratio < 2.4 ? 1 : 2;
 };
-const FIXED: Record<Exclude<DetailMode, "auto">, LodLevel> = { overview: 0, standard: 1, full: 2 };
+const FIXED: Record<Exclude<DetailMode, "auto">, LodLevel> = {
+  overview: 0,
+  standard: 1,
+  full: 2,
+};
 
 /** The level of detail in force: the tab's choice, or the zoom when set to Auto. */
 export function useLevel(): LodLevel {
-  const mode = useApp((s) => s.tabs.find((t) => t.id === s.activeTabId)?.detailMode ?? "auto");
+  const mode = useApp(
+    (s) => s.tabs.find((t) => t.id === s.activeTabId)?.detailMode ?? "auto",
+  );
   // Selecting the bucket (not the raw zoom) means nothing re-renders while zooming within a band.
   const fit = useApp((s) => s.fitZoom);
   const fromZoom = useStore((s) => levelOfZoom(s.transform[2], fit));

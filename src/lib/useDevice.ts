@@ -23,7 +23,11 @@ function subscribe(cb: () => void) {
 }
 
 const snapshot = (): Device =>
-  window.matchMedia(MOBILE).matches ? "mobile" : window.matchMedia(DESKTOP).matches ? "desktop" : "tablet";
+  window.matchMedia(MOBILE).matches
+    ? "mobile"
+    : window.matchMedia(DESKTOP).matches
+      ? "desktop"
+      : "tablet";
 
 export function useDevice(): Device {
   return useSyncExternalStore(subscribe, snapshot, () => "desktop");

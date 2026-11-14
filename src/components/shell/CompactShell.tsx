@@ -26,7 +26,9 @@ import { DetailPanel } from "../detail/DetailPanel";
 import { KindIcon } from "../icons";
 import { SearchPalette } from "../search/SearchPalette";
 import { Explorer } from "./Explorer";
+import { useExitable } from "@/lib/useExitable";
 import { PerfMenu } from "./PerfMenu";
+import { ThemeToggle } from "./ThemeToggle";
 import { TabBar } from "./TabBar";
 
 /**
@@ -58,6 +60,8 @@ export function CompactShell({
   const sel = tab?.selection ?? null;
   // The sheet only exists while something is selected.
   const sheetOpen = sheet && sel !== null;
+  const dr = useExitable(drawer);
+  const sh = useExitable(sheetOpen);
 
   return (
     <div className="flex h-screen max-[1199px]:h-dvh flex-col overflow-hidden bg-bg text-ink">
@@ -88,6 +92,7 @@ export function CompactShell({
               <span className="flex-1 text-left">Search</span>
             )}
           </button>
+          <ThemeToggle />
           <PerfMenu />
         </div>
         <div className="flex px-2">
@@ -108,14 +113,18 @@ export function CompactShell({
         />
       )}
 
-      {drawer && (
+      {dr.mounted && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/40"
+            className="fixed inset-0 z-40 bg-black/40 transition-opacity duration-300"
+            style={{ opacity: dr.visible ? 1 : 0 }}
             onClick={() => setDrawer(false)}
             aria-hidden
           />
-          <div className="fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col border-r border-line bg-panel shadow-[var(--shadow)] pt-[env(safe-area-inset-top)]">
+          <div
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col border-r border-line bg-panel shadow-[var(--shadow)] pt-[env(safe-area-inset-top)] transition-transform duration-300 ease-out"
+            style={{ transform: dr.visible ? "none" : "translateX(-100%)" }}
+          >
             <div className="flex items-center justify-between border-b border-line px-3 py-2">
               <span className="text-[13px] font-semibold">Explorer</span>
               <button
@@ -134,11 +143,12 @@ export function CompactShell({
         </>
       )}
 
-      {tab && sheetOpen && (
+      {tab && sh.mounted && (
         <div
-          className={`fixed inset-x-0 bottom-0 z-40 flex h-[78dvh] flex-col overflow-hidden rounded-t-2xl border border-b-0 border-line bg-panel shadow-[0_-8px_30px_rgb(0_0_0/0.25)] ${
+          className={`fixed inset-x-0 bottom-0 z-40 flex h-[78dvh] flex-col overflow-hidden rounded-t-2xl border border-b-0 border-line bg-panel shadow-[0_-8px_30px_rgb(0_0_0/0.25)] transition-transform duration-300 ease-out ${
             device === "tablet" ? "mx-auto max-w-[680px]" : ""
           }`}
+          style={{ transform: sh.visible ? "none" : "translateY(100%)" }}
         >
           <button
             type="button"
@@ -197,7 +207,7 @@ function Peek({
     open: tab?.openIds.includes(id) ?? false,
   };
   return (
-    <div className="shrink-0 border-t border-line bg-panel pb-[max(0.375rem,env(safe-area-inset-bottom))]">
+    <div className="slide-up shrink-0 border-t border-line bg-panel pb-[max(0.375rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center gap-1 px-2 pt-1.5">
         <button
           type="button"

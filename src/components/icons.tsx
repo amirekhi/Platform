@@ -70,7 +70,15 @@ const MAP: Record<string, ComponentType<LucideProps>> = {
   network: Router,
 };
 
-export function KindIcon({ kind, size = 16, className }: { kind: NodeKind; size?: number; className?: string }) {
+export function KindIcon({
+  kind,
+  size = 16,
+  className,
+}: {
+  kind: NodeKind;
+  size?: number;
+  className?: string;
+}) {
   const Icon = MAP[NODE_KINDS[kind].icon] ?? Box;
   return <Icon size={size} className={className} aria-hidden />;
 }

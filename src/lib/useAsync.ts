@@ -22,5 +22,9 @@ export function useAsync<T>(key: string, load: () => Promise<T>) {
   }, [key]);
 
   const fresh = res?.key === key;
-  return { data: fresh ? res.data : undefined, last: res?.data, loading: !fresh };
+  return {
+    data: fresh ? res.data : undefined,
+    last: res?.data,
+    loading: !fresh,
+  };
 }

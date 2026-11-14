@@ -9,11 +9,13 @@ import {
   type EdgeProps,
 } from "@xyflow/react";
 import { ArrowUpFromLine, FileText } from "lucide-react";
-import { memo } from "react";
+import { memo, useContext } from "react";
+import { LensContext } from "./lensContext";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { RelationView } from "@/domain/types";
 import { useApp, useLite } from "@/state/store";
 import { useLevel } from "./lod";
+import { lineWidth } from "./lineWidth";
 
 export type RelationEdgeData = {
   rel: RelationView;
@@ -38,7 +40,11 @@ function RelationEdgeImpl({
   const def = RELATION_TYPES[rel.type];
   const selected = useApp((s) => {
     const t = s.tabs.find((x) => x.id === s.activeTabId);
-    return t?.selection?.type === "relation" && t.selection.id === rel.id;
+    return (
+      t?.selection?.type === "relation" &&
+      (t.selection.id === rel.id ||
+        Boolean(rel.memberIds?.includes(t.selection.id)))
+    );
   });
   const select = useApp((s) => s.select);
   const level = useLevel();
@@ -50,7 +56,16 @@ function RelationEdgeImpl({
   const anyHl = (hl?.length ?? 0) > 0;
   const lit =
     anyHl && (hl!.includes(rel.sourceId) || hl!.includes(rel.targetId));
-  const faded = anyHl && !lit && !selected;
+  const lens = useContext(LensContext);
+  // A lens that dims keeps only the lines touching what stands out.
+  const lensDim = Boolean(
+    lens?.hot &&
+    !lens.hot.has(rel.sourceId) &&
+    !lens.hot.has(rel.targetId) &&
+    !selected,
+  );
+  const faded = (anyHl && !lit && !selected) || lensDim;
+  const labelOn = (level > 0 || selected || lit) && !lensDim;
 
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -64,6 +79,9 @@ function RelationEdgeImpl({
   // Stack labels of parallel edges so they do not overlap.
   const offset = (data!.index - (data!.total - 1) / 2) * 20;
   const derived = Boolean(rel.derived);
+  // Thicker lines stand for more relations.
+  const count = rel.count ?? rel.viaIds?.length ?? 1;
+  const widthFor = lineWidth(count, derived);
 
   return (
     <>
@@ -89,19 +107,27 @@ function RelationEdgeImpl({
         }
         style={{
           stroke: def.color,
-          strokeWidth: selected ? 3.6 : lit ? 3 : derived ? 2.2 : 1.6,
+          strokeWidth: selected
+            ? Math.max(3.6, widthFor + 1.6)
+            : lit
+              ? Math.max(3, widthFor + 1)
+              : widthFor,
           filter: selected
             ? `drop-shadow(0 0 5px ${def.color})`
             : lit
               ? `drop-shadow(0 0 4px ${def.color})`
               : undefined,
           transition: "opacity 250ms, stroke-width 250ms",
-          strokeDasharray: derived ? "1 6" : def.async ? "6 4" : undefined,
+          strokeDasharray: derived
+            ? `0.1 ${Math.max(6, widthFor * 1.8)}`
+            : def.async
+              ? "6 4"
+              : undefined,
           strokeLinecap: derived ? "round" : undefined,
           opacity: selected || lit ? 1 : faded ? 0.12 : 0.8,
         }}
       />
-      {(level > 0 || selected || lit) && (
+      {(lite ? labelOn : true) && (
         <EdgeLabelRenderer>
           <button
             type="button"
@@ -115,10 +141,10 @@ function RelationEdgeImpl({
             }`}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + offset}px)`,
-              pointerEvents: "all",
-              opacity: faded ? 0.25 : 1,
+              pointerEvents: labelOn ? "all" : "none",
+              opacity: labelOn ? (faded ? 0.25 : 1) : 0,
               scale: selected ? "1.08" : undefined,
-              transition: "opacity 250ms",
+              transition: "opacity 300ms",
               background: selected
                 ? `color-mix(in srgb, ${def.color} 22%, var(--panel))`
                 : undefined,
@@ -134,7 +160,16 @@ function RelationEdgeImpl({
                 : (rel.name ?? def.label)
             }
           >
-            {derived && <ArrowUpFromLine size={10} aria-hidden />}
+            {count > 1 && (
+              <span
+                className="flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white"
+                style={{ background: def.color }}
+                title={`${count} relations`}
+              >
+                {count}
+              </span>
+            )}
+            {derived && count <= 1 && <ArrowUpFromLine size={10} aria-hidden />}
             <span className="max-w-[150px] truncate">
               {rel.name ?? def.label}
             </span>

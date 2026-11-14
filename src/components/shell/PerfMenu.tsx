@@ -108,7 +108,7 @@ export function PerfMenu() {
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <div className="absolute right-0 top-full z-40 mt-1.5 w-64 rounded-xl border border-line bg-panel p-1.5 shadow-[var(--shadow)]">
+          <div className="pop-in absolute right-0 top-full z-40 mt-1.5 w-64 rounded-xl border border-line bg-panel p-1.5 shadow-[var(--shadow)]">
             <div className="px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
               Performance
             </div>
@@ -140,7 +140,7 @@ export function PerfMenu() {
       {notice && (
         <div
           role="status"
-          className="absolute right-0 top-full z-40 mt-1.5 w-64 rounded-xl border border-line bg-panel p-2.5 text-[12px] text-ink shadow-[var(--shadow)]"
+          className="pop-in absolute right-0 top-full z-40 mt-1.5 w-64 rounded-xl border border-line bg-panel p-2.5 text-[12px] text-ink shadow-[var(--shadow)]"
         >
           Switched to Lite mode because this device looked slow. Change it any
           time under Performance.

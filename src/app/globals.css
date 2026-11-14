@@ -15,7 +15,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0d1017;
     --panel: #141923;
     --panel-2: #1b2130;
@@ -28,6 +28,32 @@
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
     color-scheme: dark;
   }
+}
+
+/* Explicit dark choice (the toggle), same values as the system-dark block above. */
+:root[data-theme="dark"] {
+  --bg: #0d1017;
+  --panel: #141923;
+  --panel-2: #1b2130;
+  --border: #262e3f;
+  --text: #e6e9f0;
+  --muted: #8b94a7;
+  --accent: #8b7cf6;
+  --accent-soft: rgba(139, 124, 246, 0.16);
+  --canvas-dot: #2a3246;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+/* Colours glide when the theme changes. */
+html.theme-anim *,
+html.theme-anim *::before,
+html.theme-anim *::after {
+  transition:
+    background-color 350ms ease,
+    border-color 350ms ease,
+    color 350ms ease,
+    fill 350ms ease,
+    stroke 350ms ease !important;
 }
 
 @theme inline {
@@ -213,30 +239,119 @@ mark.hl {
 }
 
 /* ---------- Motion: expanding, entering, leaving ---------- */
-@keyframes go-in { from { opacity: 0; transform: scale(1.22); } to { opacity: 1; transform: scale(1); } }
-@keyframes go-out { from { opacity: 0; transform: scale(0.84); } to { opacity: 1; transform: scale(1); } }
-@keyframes go-focus { from { opacity: 0.2; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-@keyframes node-pop { from { opacity: 0; transform: scale(0.35); } to { opacity: 1; transform: scale(1); } }
-@keyframes bubble-pop { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
+@keyframes go-in {
+  from {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes go-out {
+  from {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes go-focus {
+  from {
+    opacity: 0.2;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes node-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
-.anim-enter { animation: go-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.anim-exit { animation: go-out 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.anim-focus { animation: go-focus 360ms ease-out both; }
-.node-pop { animation: node-pop 420ms cubic-bezier(0.34, 1.4, 0.5, 1) both; }
-.bubble-pop { animation: bubble-pop 320ms cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+.anim-enter {
+  animation: go-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-exit {
+  animation: go-out 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-focus {
+  animation: go-focus 360ms ease-out both;
+}
+.node-pop {
+  animation: node-pop 420ms cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
+.bubble-pop {
+  animation: bubble-pop 320ms cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
 .motion-lead .react-flow__edge,
-.motion-lead .react-flow__minimap { opacity: 0; transition: opacity 260ms ease; }
+.motion-lead .react-flow__minimap {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .anim-enter, .anim-exit, .anim-focus, .node-pop, .bubble-pop { animation: none; }
-  .motion-lead .react-flow__edge { transition: none; }
+  .anim-enter,
+  .anim-exit,
+  .anim-focus,
+  .node-pop,
+  .bubble-pop {
+    animation: none;
+  }
+  .motion-lead .react-flow__edge {
+    transition: none;
+  }
 }
 
 /* Nodes opened in place */
-@keyframes box-grow { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
-.box-grow { animation: box-grow 380ms cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: 20% 30%; }
-.react-flow__node.is-box { transition: width 380ms cubic-bezier(0.16, 1, 0.3, 1), height 380ms cubic-bezier(0.16, 1, 0.3, 1); }
-@media (prefers-reduced-motion: reduce) { .box-grow { animation: none; } .react-flow__node.is-box { transition: none; } }
+@keyframes box-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.box-grow {
+  animation: box-grow 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 20% 30%;
+}
+.react-flow__node.is-box {
+  transition:
+    width 380ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .box-grow {
+    animation: none;
+  }
+  .react-flow__node.is-box {
+    transition: none;
+  }
+}
 
 /* ---------- Lite mode: no animation, no heavy effects ---------- */
 html[data-lite="true"] .anim-enter,
@@ -245,26 +360,39 @@ html[data-lite="true"] .anim-focus,
 html[data-lite="true"] .node-pop,
 html[data-lite="true"] .bubble-pop,
 html[data-lite="true"] .box-grow,
-html[data-lite="true"] .edge-async { animation: none !important; }
+html[data-lite="true"] .edge-async {
+  animation: none !important;
+}
 html[data-lite="true"] .react-flow__node,
 html[data-lite="true"] .react-flow__edge,
-html[data-lite="true"] .react-flow__node * { transition: none !important; }
-html[data-lite="true"] .react-flow__edge-path { filter: none !important; }
-.anim-enter, .anim-exit, .anim-focus { will-change: transform, opacity; }
+html[data-lite="true"] .react-flow__node * {
+  transition: none !important;
+}
+html[data-lite="true"] .react-flow__edge-path {
+  filter: none !important;
+}
+.anim-enter,
+.anim-exit,
+.anim-focus {
+  will-change: transform, opacity;
+}
 
 /* ---------- Phones and tablets (the desktop layout has no rules of its own) ---------- */
 html[data-device="mobile"] body,
-html[data-device="tablet"] body { overscroll-behavior: none; }
+html[data-device="tablet"] body {
+  overscroll-behavior: none;
+}
 /* The toolbar carries every action, so the tiny corner chips are display-only on touch screens. */
+/* The corner chips are only hints on touch: at overview zoom they would cover the whole node.
+   The actions live in the row that appears under a tapped node. */
 html[data-device="mobile"] .node-chip,
 html[data-device="tablet"] .node-chip {
-  min-width: 30px;
-  min-height: 28px;
-  justify-content: center;
-  padding: 4px 6px;
-  touch-action: manipulation;
+  pointer-events: none;
 }
-.node-grip { touch-action: none; cursor: grab; }
+.node-grip {
+  touch-action: none;
+  cursor: grab;
+}
 /* Touch action row keeps a constant on-screen size whatever the zoom. */
 .touch-row {
   transform-origin: top center;
@@ -277,21 +405,167 @@ html[data-device="tablet"] [data-open="true"] .node-grip {
 }
 /* Comfortable touch targets for the node toolbar and the opened-box header buttons. */
 html[data-device="mobile"] .react-flow__node-toolbar button,
-html[data-device="tablet"] .react-flow__node-toolbar button { width: 2.5rem; height: 2.5rem; }
+html[data-device="tablet"] .react-flow__node-toolbar button {
+  width: 2.5rem;
+  height: 2.5rem;
+}
 html[data-device="mobile"] .react-flow__node-toolbar > div,
-html[data-device="tablet"] .react-flow__node-toolbar > div { padding: 0.25rem; gap: 0.125rem; }
+html[data-device="tablet"] .react-flow__node-toolbar > div {
+  padding: 0.25rem;
+  gap: 0.125rem;
+}
 html[data-device="mobile"] .react-flow__controls button,
-html[data-device="tablet"] .react-flow__controls button { width: 2.25rem; height: 2.25rem; }
+html[data-device="tablet"] .react-flow__controls button {
+  width: 2.25rem;
+  height: 2.25rem;
+}
 html[data-device="mobile"] [data-open="true"] button,
-html[data-device="tablet"] [data-open="true"] button { width: 2rem; height: 2rem; }
+html[data-device="tablet"] [data-open="true"] button {
+  width: 2rem;
+  height: 2rem;
+}
 /* Wide content scrolls inside the panel instead of widening the page. */
 html[data-device="mobile"] .md table,
-html[data-device="tablet"] .md table { display: block; overflow-x: auto; max-width: 100%; }
+html[data-device="tablet"] .md table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
 html[data-device="mobile"] .md pre,
-html[data-device="tablet"] .md pre { overflow-x: auto; max-width: 100%; }
+html[data-device="tablet"] .md pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
 html[data-device="mobile"] .md img,
-html[data-device="tablet"] .md img { max-width: 100%; height: auto; }
+html[data-device="tablet"] .md img {
+  max-width: 100%;
+  height: auto;
+}
 
 /* On phones and tablets the node actions live in the bottom bar, not in a floating toolbar. */
 html[data-device="mobile"] .react-flow__node-toolbar,
-html[data-device="tablet"] .react-flow__node-toolbar { display: none; }
+html[data-device="tablet"] .react-flow__node-toolbar {
+  display: none;
+}
+
+/* ---------- Grace: things fade in and out instead of popping ---------- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes leave {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+@keyframes leave-edge {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.react-flow__edge {
+  animation: fade-in 420ms ease both;
+}
+.react-flow__node.node-leaving {
+  animation: leave 300ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+.react-flow__edge.edge-leaving {
+  animation: leave-edge 260ms ease both;
+  pointer-events: none;
+}
+.pop-in {
+  animation: pop-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top;
+}
+html[data-lite="true"] .react-flow__edge,
+html[data-lite="true"] .react-flow__node.node-leaving,
+html[data-lite="true"] .react-flow__edge.edge-leaving,
+html[data-lite="true"] .pop-in {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge,
+  .react-flow__node.node-leaving,
+  .react-flow__edge.edge-leaving,
+  .pop-in {
+    animation: none !important;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(40%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.slide-up {
+  animation: slide-up 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.fade-in-anim {
+  animation: fade-in 200ms ease both;
+}
+.fade-in-anim > [role="dialog"] {
+  animation: pop-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+html[data-lite="true"] .slide-up,
+html[data-lite="true"] .fade-in-anim,
+html[data-lite="true"] .fade-in-anim > [role="dialog"] {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-up,
+  .fade-in-anim,
+  .fade-in-anim > [role="dialog"] {
+    animation: none !important;
+  }
+}
+
+/* Down: a red ring that keeps pulsing outward. Degraded stays a steady amber ring. */
+@keyframes health-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgb(239 68 68 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 0);
+  }
+}
+.health-pulse {
+  animation: health-pulse 1.7s ease-out infinite;
+}
+html[data-lite="true"] .health-pulse {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .health-pulse {
+    animation: none;
+  }
+}

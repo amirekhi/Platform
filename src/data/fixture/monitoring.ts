@@ -1,5 +1,11 @@
 import { NODE_KINDS } from "@/domain/registry";
-import type { Alert, GraphNode, Health, Metric, MonitoringSnapshot } from "@/domain/types";
+import type {
+  Alert,
+  GraphNode,
+  Health,
+  Metric,
+  MonitoringSnapshot,
+} from "@/domain/types";
 
 /** Deterministic pseudo-random generator so fake data is stable between renders. */
 function rng(seed: string) {
@@ -17,7 +23,12 @@ function rng(seed: string) {
   };
 }
 
-function series(rand: () => number, base: number, noise: number, spikeAtEnd = 0): number[] {
+function series(
+  rand: () => number,
+  base: number,
+  noise: number,
+  spikeAtEnd = 0,
+): number[] {
   const pts: number[] = [];
   for (let i = 0; i < 30; i++) {
     const wave = Math.sin(i / 4) * noise * 0.5;
@@ -50,30 +61,62 @@ function metric(
 }
 
 /** Hand-picked overrides so the prototype has interesting states to explore. */
-const OVERRIDES: Record<string, { health: Health; alerts?: Alert[]; spike?: number }> = {
+const OVERRIDES: Record<
+  string,
+  { health: Health; alerts?: Alert[]; spike?: number }
+> = {
   "svc-payments": {
     health: "degraded",
     spike: 3.4,
     alerts: [
-      { id: "al-1", severity: "warning", title: "Authorisation error rate above 2% for 5 min", since: "2026-11-10T19:12:00Z" },
+      {
+        id: "al-1",
+        severity: "warning",
+        title: "Authorisation error rate above 2% for 5 min",
+        since: "2026-11-10T19:12:00Z",
+      },
     ],
   },
   "svc-shipping": {
     health: "down",
     spike: 6,
     alerts: [
-      { id: "al-2", severity: "critical", title: "Carrier API unreachable, shipment creation failing", since: "2026-11-10T18:40:00Z" },
-      { id: "al-3", severity: "warning", title: "Consumer lag above 10 000 on order-events", since: "2026-11-10T18:55:00Z" },
+      {
+        id: "al-2",
+        severity: "critical",
+        title: "Carrier API unreachable, shipment creation failing",
+        since: "2026-11-10T18:40:00Z",
+      },
+      {
+        id: "al-3",
+        severity: "warning",
+        title: "Consumer lag above 10 000 on order-events",
+        since: "2026-11-10T18:55:00Z",
+      },
     ],
   },
   "q-order-events": {
     health: "degraded",
-    alerts: [{ id: "al-4", severity: "warning", title: "Consumer group shipping-v2 lagging", since: "2026-11-10T18:55:00Z" }],
+    alerts: [
+      {
+        id: "al-4",
+        severity: "warning",
+        title: "Consumer group shipping-v2 lagging",
+        since: "2026-11-10T18:55:00Z",
+      },
+    ],
   },
   "hw-fra-a12-07": {
     health: "degraded",
     spike: 14,
-    alerts: [{ id: "al-6", severity: "warning", title: "CPU package temperature above 82C, fan 3 degraded", since: "2026-11-10T17:20:00Z" }],
+    alerts: [
+      {
+        id: "al-6",
+        severity: "warning",
+        title: "CPU package temperature above 82C, fan 3 degraded",
+        since: "2026-11-10T17:20:00Z",
+      },
+    ],
   },
   "pipe-checkout": {
     health: "healthy",
@@ -81,7 +124,14 @@ const OVERRIDES: Record<string, { health: Health; alerts?: Alert[]; spike?: numb
   "db-orders": { health: "healthy" },
   "svc-legacy-notify": {
     health: "degraded",
-    alerts: [{ id: "al-5", severity: "info", title: "Deprecated service still receiving traffic", since: "2026-10-14T10:00:00Z" }],
+    alerts: [
+      {
+        id: "al-5",
+        severity: "info",
+        title: "Deprecated service still receiving traffic",
+        since: "2026-10-14T10:00:00Z",
+      },
+    ],
   },
 };
 
@@ -102,27 +152,45 @@ export function buildMonitoring(node: GraphNode): MonitoringSnapshot | null {
     case "ui-app":
     case "deployment":
       metrics = [
-        metric(rand, "p95", "p95 latency", "ms", 80 + rand() * 120, 30, { threshold: 400, spike: spike * 80 }),
-        metric(rand, "errors", "Error rate", "%", 0.2 + rand() * 0.4, 0.2, { threshold: 2, spike }),
+        metric(rand, "p95", "p95 latency", "ms", 80 + rand() * 120, 30, {
+          threshold: 400,
+          spike: spike * 80,
+        }),
+        metric(rand, "errors", "Error rate", "%", 0.2 + rand() * 0.4, 0.2, {
+          threshold: 2,
+          spike,
+        }),
         metric(rand, "rps", "Requests", "req/s", 40 + rand() * 400, 60),
       ];
       break;
     case "database":
       metrics = [
-        metric(rand, "conns", "Connections", "", 60 + rand() * 120, 20, { threshold: 400 }),
+        metric(rand, "conns", "Connections", "", 60 + rand() * 120, 20, {
+          threshold: 400,
+        }),
         metric(rand, "ops", "Operations", "ops/s", 800 + rand() * 2000, 200),
-        metric(rand, "lag", "Replication lag", "s", 0.3 + rand(), 0.4, { threshold: 5 }),
+        metric(rand, "lag", "Replication lag", "s", 0.3 + rand(), 0.4, {
+          threshold: 5,
+        }),
       ];
       break;
     case "cache":
       metrics = [
-        metric(rand, "hit", "Hit rate", "%", 92 + rand() * 5, 2, { threshold: 80, invert: true }),
-        metric(rand, "mem", "Memory", "%", 55 + rand() * 20, 4, { threshold: 90 }),
+        metric(rand, "hit", "Hit rate", "%", 92 + rand() * 5, 2, {
+          threshold: 80,
+          invert: true,
+        }),
+        metric(rand, "mem", "Memory", "%", 55 + rand() * 20, 4, {
+          threshold: 90,
+        }),
       ];
       break;
     case "queue":
       metrics = [
-        metric(rand, "lag", "Consumer lag", "msgs", 40 + rand() * 120, 40, { threshold: 10000, spike: ov ? 6000 : 0 }),
+        metric(rand, "lag", "Consumer lag", "msgs", 40 + rand() * 120, 40, {
+          threshold: 10000,
+          spike: ov ? 6000 : 0,
+        }),
         metric(rand, "rate", "Throughput", "msg/s", 100 + rand() * 300, 50),
       ];
       break;
@@ -130,32 +198,58 @@ export function buildMonitoring(node: GraphNode): MonitoringSnapshot | null {
     case "server":
       metrics = [
         metric(rand, "cpu", "CPU", "%", 35 + rand() * 25, 8, { threshold: 85 }),
-        metric(rand, "mem", "Memory", "%", 50 + rand() * 20, 6, { threshold: 90 }),
+        metric(rand, "mem", "Memory", "%", 50 + rand() * 20, 6, {
+          threshold: 90,
+        }),
       ];
       break;
     case "hardware":
       metrics = [
-        metric(rand, "temp", "CPU temperature", "C", 58 + rand() * 6, 3, { threshold: 82, spike }),
-        metric(rand, "power", "Power draw", "W", 380 + rand() * 80, 25, { threshold: 700 }),
+        metric(rand, "temp", "CPU temperature", "C", 58 + rand() * 6, 3, {
+          threshold: 82,
+          spike,
+        }),
+        metric(rand, "power", "Power draw", "W", 380 + rand() * 80, 25, {
+          threshold: 700,
+        }),
         metric(rand, "disk", "NVMe wear", "%", 12 + rand() * 6, 0.4),
       ];
       break;
     case "network":
       metrics = [
-        metric(rand, "tput", "Throughput", "Gbit/s", 6 + rand() * 6, 2, { threshold: 90 }),
-        metric(rand, "loss", "Packet loss", "%", 0.01 + rand() * 0.03, 0.02, { threshold: 1 }),
+        metric(rand, "tput", "Throughput", "Gbit/s", 6 + rand() * 6, 2, {
+          threshold: 90,
+        }),
+        metric(rand, "loss", "Packet loss", "%", 0.01 + rand() * 0.03, 0.02, {
+          threshold: 1,
+        }),
       ];
       break;
     case "datacenter":
       metrics = [
-        metric(rand, "pwr", "IT load", "kW", 310 + rand() * 40, 12, { threshold: 440 }),
-        metric(rand, "inlet", "Inlet temperature", "C", 22 + rand() * 1.5, 0.6, { threshold: 27 }),
+        metric(rand, "pwr", "IT load", "kW", 310 + rand() * 40, 12, {
+          threshold: 440,
+        }),
+        metric(
+          rand,
+          "inlet",
+          "Inlet temperature",
+          "C",
+          22 + rand() * 1.5,
+          0.6,
+          { threshold: 27 },
+        ),
       ];
       break;
     case "pipeline":
       metrics = [
-        metric(rand, "success", "Success rate", "%", 90 + rand() * 8, 3, { threshold: 80, invert: true }),
-        metric(rand, "duration", "Duration", "min", 8 + rand() * 6, 2, { threshold: 25 }),
+        metric(rand, "success", "Success rate", "%", 90 + rand() * 8, 3, {
+          threshold: 80,
+          invert: true,
+        }),
+        metric(rand, "duration", "Duration", "min", 8 + rand() * 6, 2, {
+          threshold: 25,
+        }),
       ];
       break;
     default:
@@ -169,8 +263,14 @@ export function buildMonitoring(node: GraphNode): MonitoringSnapshot | null {
     metrics,
     alerts: ov?.alerts ?? [],
     links: [
-      { label: "Grafana dashboard", url: `https://grafana.example.internal/d/${node.id}` },
-      { label: "Logs", url: `https://logs.example.internal/search?service=${node.id}` },
+      {
+        label: "Grafana dashboard",
+        url: `https://grafana.example.internal/d/${node.id}`,
+      },
+      {
+        label: "Logs",
+        url: `https://logs.example.internal/search?service=${node.id}`,
+      },
     ],
     observedAt: "2026-11-10T20:55:00Z",
   };

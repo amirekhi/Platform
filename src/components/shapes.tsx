@@ -7,12 +7,29 @@ import type { NodeKind } from "@/domain/types";
  * can be scaled freely. `body` props style the filled outline, `line` props
  * style the interior detail strokes.
  */
-type Ctx = { body: SVGProps<SVGElement>; line: SVGProps<SVGElement>; fill: CSSProperties; color: string };
+type Ctx = {
+  body: SVGProps<SVGElement>;
+  line: SVGProps<SVGElement>;
+  fill: CSSProperties;
+  color: string;
+};
 
-const R = (c: Ctx, p: SVGProps<SVGRectElement>) => <rect {...(c.body as SVGProps<SVGRectElement>)} style={c.fill} {...p} />;
-const P = (c: Ctx, d: string) => <path {...(c.body as SVGProps<SVGPathElement>)} style={c.fill} d={d} />;
-const Poly = (c: Ctx, points: string) => <polygon {...(c.body as SVGProps<SVGPolygonElement>)} style={c.fill} points={points} />;
-const L = (c: Ctx, d: string) => <path {...(c.line as SVGProps<SVGPathElement>)} d={d} fill="none" />;
+const R = (c: Ctx, p: SVGProps<SVGRectElement>) => (
+  <rect {...(c.body as SVGProps<SVGRectElement>)} style={c.fill} {...p} />
+);
+const P = (c: Ctx, d: string) => (
+  <path {...(c.body as SVGProps<SVGPathElement>)} style={c.fill} d={d} />
+);
+const Poly = (c: Ctx, points: string) => (
+  <polygon
+    {...(c.body as SVGProps<SVGPolygonElement>)}
+    style={c.fill}
+    points={points}
+  />
+);
+const L = (c: Ctx, d: string) => (
+  <path {...(c.line as SVGProps<SVGPathElement>)} d={d} fill="none" />
+);
 
 const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
   square: (c) => (
@@ -34,7 +51,12 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
   ticket: (c) => (
     <>
       {P(c, "M6 20 H94 V40 A10 10 0 0 0 94 60 V80 H6 V60 A10 10 0 0 0 6 40 Z")}
-      <path {...(c.line as SVGProps<SVGPathElement>)} d="M74 26 V74" strokeDasharray="3 4" fill="none" />
+      <path
+        {...(c.line as SVGProps<SVGPathElement>)}
+        d="M74 26 V74"
+        strokeDasharray="3 4"
+        fill="none"
+      />
     </>
   ),
   book: (c) => (
@@ -47,7 +69,14 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
   cylinder: (c) => (
     <>
       {P(c, "M10 20 V80 A40 13 0 0 0 90 80 V20 A40 13 0 0 1 10 20 Z")}
-      <ellipse {...(c.body as SVGProps<SVGEllipseElement>)} style={c.fill} cx="50" cy="20" rx="40" ry="13" />
+      <ellipse
+        {...(c.body as SVGProps<SVGEllipseElement>)}
+        style={c.fill}
+        cx="50"
+        cy="20"
+        rx="40"
+        ry="13"
+      />
       {L(c, "M10 48 A40 13 0 0 0 90 48")}
       {L(c, "M10 66 A40 13 0 0 0 90 66")}
     </>
@@ -70,7 +99,11 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
       {L(c, "M20 34 V66 M32 34 V66")}
     </>
   ),
-  folder: (c) => P(c, "M6 24 Q6 15 15 15 H38 L47 26 H85 Q94 26 94 35 V80 Q94 89 85 89 H15 Q6 89 6 80 Z"),
+  folder: (c) =>
+    P(
+      c,
+      "M6 24 Q6 15 15 15 H38 L47 26 H85 Q94 26 94 35 V80 Q94 89 85 89 H15 Q6 89 6 80 Z",
+    ),
   chevron: (c) => Poly(c, "6,22 64,22 94,50 64,78 6,78 34,50"),
   box: (c) => (
     <>
@@ -84,11 +117,31 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
       {L(c, "M30 36 H70")}
     </>
   ),
-  cloud: (c) => P(c, "M27 80 C8 80 4 56 24 52 C22 30 48 20 60 36 C76 26 96 42 86 60 C100 64 94 80 78 80 Z"),
+  cloud: (c) =>
+    P(
+      c,
+      "M27 80 C8 80 4 56 24 52 C22 30 48 20 60 36 C76 26 96 42 86 60 C100 64 94 80 78 80 Z",
+    ),
   stack: (c) => (
     <>
-      <rect {...(c.line as SVGProps<SVGRectElement>)} x="24" y="6" width="70" height="46" rx="8" fill="none" />
-      <rect {...(c.line as SVGProps<SVGRectElement>)} x="15" y="15" width="70" height="46" rx="8" fill="none" />
+      <rect
+        {...(c.line as SVGProps<SVGRectElement>)}
+        x="24"
+        y="6"
+        width="70"
+        height="46"
+        rx="8"
+        fill="none"
+      />
+      <rect
+        {...(c.line as SVGProps<SVGRectElement>)}
+        x="15"
+        y="15"
+        width="70"
+        height="46"
+        rx="8"
+        fill="none"
+      />
       {R(c, { x: 6, y: 26, width: 70, height: 66, rx: 9 })}
     </>
   ),
@@ -115,7 +168,8 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
     </>
   ),
   octagon: (c) => Poly(c, "31,5 69,5 95,31 95,69 69,95 31,95 5,69 5,31"),
-  shield: (c) => P(c, "M50 4 L91 17 V50 C91 75 72 89 50 97 C28 89 9 75 9 50 V17 Z"),
+  shield: (c) =>
+    P(c, "M50 4 L91 17 V50 C91 75 72 89 50 97 C28 89 9 75 9 50 V17 Z"),
   tower: (c) => (
     <>
       {P(c, "M18 94 V28 H28 V15 H41 V28 H59 V15 H72 V28 H82 V94 Z")}
@@ -178,7 +232,16 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
     <>
       {R(c, { x: 4, y: 33, width: 92, height: 34, rx: 6 })}
       {[14, 28, 42, 56, 70].map((x) => (
-        <rect key={x} x={x} y={46} width="9" height="9" rx="1.5" fill={c.color} opacity=".55" />
+        <rect
+          key={x}
+          x={x}
+          y={46}
+          width="9"
+          height="9"
+          rx="1.5"
+          fill={c.color}
+          opacity=".55"
+        />
       ))}
     </>
   ),
@@ -190,21 +253,47 @@ export interface KindShapeProps {
   dashed?: boolean;
   /** Draw the outline in the accent colour instead of the kind colour. */
   accent?: boolean;
+  /** Colour override (used by lenses) in place of the kind colour. */
+  tint?: string;
   className?: string;
 }
 
-export function KindShape({ kind, size = 86, dashed, accent, className }: KindShapeProps) {
-  const def = NODE_KINDS[kind];
+export function KindShape({
+  kind,
+  size = 86,
+  dashed,
+  accent,
+  tint,
+  className,
+}: KindShapeProps) {
+  const def = { ...NODE_KINDS[kind], color: tint ?? NODE_KINDS[kind].color };
   const stroke = accent ? "var(--accent)" : def.color;
   const dash = dashed || def.shape === "octagon" ? "6 4" : undefined;
   const ctx: Ctx = {
     color: def.color,
-    body: { stroke, strokeWidth: 3, strokeLinejoin: "round", strokeDasharray: dash },
-    line: { stroke: def.color, strokeWidth: 2, strokeLinecap: "round", opacity: 0.55 },
+    body: {
+      stroke,
+      strokeWidth: 3,
+      strokeLinejoin: "round",
+      strokeDasharray: dash,
+    },
+    line: {
+      stroke: def.color,
+      strokeWidth: 2,
+      strokeLinecap: "round",
+      opacity: 0.55,
+    },
     fill: { fill: `color-mix(in srgb, ${def.color} 16%, var(--panel))` },
   };
   return (
-    <svg viewBox="0 0 100 100" width={size} height={size} className={className} aria-hidden overflow="visible">
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      className={className}
+      aria-hidden
+      overflow="visible"
+    >
       {SHAPES[def.shape](ctx)}
     </svg>
   );

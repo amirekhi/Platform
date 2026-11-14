@@ -189,7 +189,11 @@ export interface NodeDetails {
   docs: number;
   diagrams: number;
   relations: number;
-  monitoring: { health: Health; alerts: number; headline?: { label: string; value: number; unit: string } } | null;
+  monitoring: {
+    health: Health;
+    alerts: number;
+    headline?: { label: string; value: number; unit: string };
+  } | null;
   owner: { id: Id; name: string } | null;
 }
 
@@ -198,6 +202,8 @@ export interface NodeView extends GraphNode {
   health: Health;
   /** Number of nodes inside this one (children, or owned nodes for a team). */
   childCount: number;
+  /** Nodes with a problem (degraded or down) in this node, itself included. */
+  alertCount: number;
   /** Connections to nodes that are not represented in this view. */
   externalCount: number;
   details: NodeDetails;
@@ -211,8 +217,14 @@ export interface RelationView extends Relation {
   docCount: number;
   /** True for an edge lifted from relations between deeper nodes. */
   derived?: boolean;
-  /** Underlying relation ids when derived. */
+  /** Underlying relation ids when derived or merged. */
   viaIds?: Id[];
+  /** How many underlying relations this line stands for (1 when it is a single relation). */
+  count?: number;
+  /** Merged line whose relations are of different kinds. */
+  mixed?: boolean;
+  /** Relation ids folded into a merged line. */
+  memberIds?: Id[];
 }
 
 export interface GraphView {

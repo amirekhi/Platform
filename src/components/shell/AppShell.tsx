@@ -9,13 +9,17 @@ import { Canvas } from "../canvas/Canvas";
 import { DetailPanel } from "../detail/DetailPanel";
 import { SearchPalette } from "../search/SearchPalette";
 import { Explorer } from "./Explorer";
+import { useExitable } from "@/lib/useExitable";
 import { PerfMenu } from "./PerfMenu";
+import { ThemeToggle } from "./ThemeToggle";
 import { TabBar } from "./TabBar";
 
 export function AppShell() {
   const tab = useActiveTab();
   const explorerOpen = useApp((s) => s.explorerOpen);
   const detailOpen = useApp((s) => s.detailOpen);
+  const ex = useExitable(explorerOpen);
+  const dt = useExitable(detailOpen && !!tab);
   const toggleExplorer = useApp((s) => s.toggleExplorer);
   const setDetailOpen = useApp((s) => s.setDetailOpen);
   const setSearchOpen = useApp((s) => s.setSearchOpen);
@@ -62,6 +66,7 @@ export function AppShell() {
               ⌘K
             </kbd>
           </button>
+          <ThemeToggle />
           <PerfMenu />
           <button
             type="button"
@@ -76,17 +81,27 @@ export function AppShell() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {explorerOpen && (
-          <div className="w-[248px] shrink-0">
-            <Explorer />
+        {ex.mounted && (
+          <div
+            className="shrink-0 overflow-hidden transition-[width] duration-300 ease-out"
+            style={{ width: ex.visible ? 248 : 0 }}
+          >
+            <div className="h-full w-[248px]">
+              <Explorer />
+            </div>
           </div>
         )}
         <main className="relative min-w-0 flex-1">
           {tab ? <Canvas key={tab.id} tab={tab} /> : null}
         </main>
-        {detailOpen && tab && (
-          <div className="relative w-[440px] max-w-[45vw] shrink-0">
-            <DetailPanel tab={tab} />
+        {dt.mounted && tab && (
+          <div
+            className="relative shrink-0 overflow-hidden transition-[width] duration-300 ease-out"
+            style={{ width: dt.visible ? "min(440px, 45vw)" : 0 }}
+          >
+            <div className="h-full w-[min(440px,45vw)]">
+              <DetailPanel tab={tab} />
+            </div>
           </div>
         )}
       </div>

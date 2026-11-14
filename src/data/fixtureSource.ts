@@ -1,3 +1,4 @@
+import { mergeParallel } from "./mergeParallel";
 import MiniSearch, { type SearchResult } from "minisearch";
 import { NODE_KINDS, RELATION_TYPES } from "@/domain/registry";
 import type {
@@ -24,7 +25,12 @@ import { buildMonitoring } from "./fixture/monitoring";
 import { NODES } from "./fixture/nodes";
 import { RELATIONS } from "./fixture/relations";
 
-const HEALTH_RANK: Record<Health, number> = { unknown: 0, healthy: 1, degraded: 2, down: 3 };
+const HEALTH_RANK: Record<Health, number> = {
+  unknown: 0,
+  healthy: 1,
+  degraded: 2,
+  down: 3,
+};
 
 interface IndexDoc {
   key: string;
@@ -70,7 +76,8 @@ export class FixtureDataSource implements DataSource {
       for (const t of d.attachedTo) push(this.docsByTarget, targetKey(t), d);
     }
     for (const dg of DIAGRAMS) {
-      for (const t of dg.attachedTo) push(this.diagramsByTarget, targetKey(t), dg);
+      for (const t of dg.attachedTo)
+        push(this.diagramsByTarget, targetKey(t), dg);
     }
     for (const n of NODES) this.monitoring.set(n.id, buildMonitoring(n));
 
@@ -101,7 +108,9 @@ export class FixtureDataSource implements DataSource {
   }
 
   async getChildren(id: Id) {
-    return (this.children.get(id) ?? []).map((c) => this.nodes.get(c)!).filter(Boolean);
+    return (this.children.get(id) ?? [])
+      .map((c) => this.nodes.get(c)!)
+      .filter(Boolean);
   }
 
   async getAncestors(id: Id) {
@@ -123,7 +132,10 @@ export class FixtureDataSource implements DataSource {
   }
 
   async getRelationsOf(nodeId: Id) {
-    return [...(this.relsBySource.get(nodeId) ?? []), ...(this.relsByTarget.get(nodeId) ?? [])];
+    return [
+      ...(this.relsBySource.get(nodeId) ?? []),
+      ...(this.relsByTarget.get(nodeId) ?? []),
+    ];
   }
 
   /* ---------------- Scoped views ---------------- */
@@ -144,14 +156,18 @@ export class FixtureDataSource implements DataSource {
         return !parent || parent.ownerId !== id;
       });
     }
-    return (this.children.get(id) ?? []).map((c) => this.nodes.get(c)!).filter(Boolean);
+    return (this.children.get(id) ?? [])
+      .map((c) => this.nodes.get(c)!)
+      .filter(Boolean);
   }
 
   /** Ids connected to a node by a relation, in either direction. */
   private relationNeighbours(id: Id, hidden: Set<string>): Id[] {
     const out = new Set<Id>();
-    for (const r of this.relsBySource.get(id) ?? []) if (!hidden.has(r.type)) out.add(r.targetId);
-    for (const r of this.relsByTarget.get(id) ?? []) if (!hidden.has(r.type)) out.add(r.sourceId);
+    for (const r of this.relsBySource.get(id) ?? [])
+      if (!hidden.has(r.type)) out.add(r.targetId);
+    for (const r of this.relsByTarget.get(id) ?? [])
+      if (!hidden.has(r.type)) out.add(r.sourceId);
     out.delete(id);
     return [...out];
   }
@@ -162,7 +178,8 @@ export class FixtureDataSource implements DataSource {
     let set = this.subtreeCache.get(id);
     if (set) return set;
     set = new Set<Id>([id]);
-    for (const c of this.children.get(id) ?? []) for (const d of this.subtree(c)) set.add(d);
+    for (const c of this.children.get(id) ?? [])
+      for (const d of this.subtree(c)) set.add(d);
     this.subtreeCache.set(id, set);
     return set;
   }
@@ -179,7 +196,10 @@ export class FixtureDataSource implements DataSource {
     const out = new Set<Id>();
     for (const d of sub) {
       if (d === id) continue;
-      for (const r of [...(this.relsBySource.get(d) ?? []), ...(this.relsByTarget.get(d) ?? [])]) {
+      for (const r of [
+        ...(this.relsBySource.get(d) ?? []),
+        ...(this.relsByTarget.get(d) ?? []),
+      ]) {
         if (hidden.has(r.type)) continue;
         const other = r.sourceId === d ? r.targetId : r.sourceId;
         if (sub.has(other)) continue;
@@ -240,7 +260,8 @@ export class FixtureDataSource implements DataSource {
       // Stacked expansions: each expanded node pulls in its own neighbours.
       for (const ex of q.expandedIds ?? []) {
         if (!dist.has(ex)) continue;
-        for (const nb of this.neighboursOf(ex, hidden, showLifted)) if (!dist.has(nb)) dist.set(nb, (dist.get(ex) ?? 0) + 1);
+        for (const nb of this.neighboursOf(ex, hidden, showLifted))
+          if (!dist.has(nb)) dist.set(nb, (dist.get(ex) ?? 0) + 1);
       }
       members = [...dist.keys()];
       const cap = MAX_AROUND + 12 * (q.expandedIds?.length ?? 0);
@@ -268,8 +289,15 @@ export class FixtureDataSource implements DataSource {
 
     /* 2. Ghosts: outside nodes the contents connect to (inside mode only). */
     const ghostSet = new Set<Id>();
-    const expanded = new Set<Id>((q.expandedIds ?? []).filter((id) => memberSet.has(id)));
-    if (q.mode === "inside" && (q.showExternal || expanded.size > 0) && rootId && this.nodes.get(rootId)?.kind !== "team") {
+    const expanded = new Set<Id>(
+      (q.expandedIds ?? []).filter((id) => memberSet.has(id)),
+    );
+    if (
+      q.mode === "inside" &&
+      (q.showExternal || expanded.size > 0) &&
+      rootId &&
+      this.nodes.get(rootId)?.kind !== "team"
+    ) {
       const rootChain = this.chainOf(rootId);
       const maxGhosts = MAX_GHOSTS + 8 * expanded.size;
       for (const r of RELATIONS) {
@@ -284,11 +312,17 @@ export class FixtureDataSource implements DataSource {
         const outside = sIn ? r.targetId : r.sourceId;
         const oc = this.chainOf(outside);
         let i = 0;
-        while (i < rootChain.length && i < oc.length && rootChain[i] === oc[i]) i++;
+        while (i < rootChain.length && i < oc.length && rootChain[i] === oc[i])
+          i++;
         if (i >= oc.length) continue; // outside endpoint is an ancestor of the root
         if (i >= rootChain.length) continue; // endpoint lives inside the root
         const ghost = oc[i];
-        if (ghost !== rootId && !memberSet.has(ghost) && ghostSet.size < maxGhosts) ghostSet.add(ghost);
+        if (
+          ghost !== rootId &&
+          !memberSet.has(ghost) &&
+          ghostSet.size < maxGhosts
+        )
+          ghostSet.add(ghost);
       }
     }
     const visible = new Set<Id>([...memberSet, ...ghostSet]);
@@ -299,11 +333,15 @@ export class FixtureDataSource implements DataSource {
     const seen = new Set<Id>();
     for (const id of visible) {
       for (const r of this.relsBySource.get(id) ?? []) {
-        if (seen.has(r.id) || hidden.has(r.type) || !visible.has(r.targetId)) continue;
+        if (seen.has(r.id) || hidden.has(r.type) || !visible.has(r.targetId))
+          continue;
         if (ghostSet.has(r.sourceId) && ghostSet.has(r.targetId)) continue;
         seen.add(r.id);
         directPairs.add(`${r.sourceId}>${r.targetId}`);
-        relations.push({ ...r, docCount: (this.docsByTarget.get(`relation:${r.id}`) ?? []).length });
+        relations.push({
+          ...r,
+          docCount: (this.docsByTarget.get(`relation:${r.id}`) ?? []).length,
+        });
       }
     }
 
@@ -331,7 +369,8 @@ export class FixtureDataSource implements DataSource {
           sourceId: s,
           targetId: t,
           name: via.length === 1 ? via[0].name : `${via.length} relations`,
-          description: "Lifted from relations between nodes inside these components.",
+          description:
+            "Lifted from relations between nodes inside these components.",
           lifecycle: "active",
           props: {},
           docCount: 0,
@@ -346,30 +385,55 @@ export class FixtureDataSource implements DataSource {
     if (showContainment) {
       for (const id of memberSet) {
         const n = this.nodes.get(id)!;
-        if (n.parentId && memberSet.has(n.parentId) && containerOf.get(id) !== n.parentId) containment.push({ parentId: n.parentId, childId: id });
+        if (
+          n.parentId &&
+          memberSet.has(n.parentId) &&
+          containerOf.get(id) !== n.parentId
+        )
+          containment.push({ parentId: n.parentId, childId: id });
       }
     }
 
     /* 6. Node view models. */
     const covered = (nbId: Id) =>
-      q.mode === "inside" ? this.liftTo(nbId, visible) !== undefined : visible.has(nbId);
+      q.mode === "inside"
+        ? this.liftTo(nbId, visible) !== undefined
+        : visible.has(nbId);
     const ordered = [...members, ...ghostSet];
     const nodes: NodeView[] = ordered.map((id) => {
       const n = this.nodes.get(id)!;
       let externalCount = 0;
-      for (const nb of this.neighboursOf(id, hidden, showLifted && q.mode === "around")) if (!covered(nb)) externalCount++;
+      for (const nb of this.neighboursOf(
+        id,
+        hidden,
+        showLifted && q.mode === "around",
+      ))
+        if (!covered(nb)) externalCount++;
       return {
         ...n,
-        role: ghostSet.has(id) ? "ghost" : q.mode === "around" && id === rootId ? "root" : "member",
+        role: ghostSet.has(id)
+          ? "ghost"
+          : q.mode === "around" && id === rootId
+            ? "root"
+            : "member",
         health: this.healthOf(n),
         childCount: this.contentsOf(id).length,
+        alertCount: this.alertsOf(n.id),
         externalCount: ghostSet.has(id) ? 0 : externalCount,
         details: this.detailsOf(n),
         containerId: containerOf.get(id) ?? null,
-        open: openSet.has(id) && memberSet.has(id) && this.contentsOf(id).length > 0,
+        open:
+          openSet.has(id) &&
+          memberSet.has(id) &&
+          this.contentsOf(id).length > 0,
       };
     });
-    return { nodes, relations, containment, truncated };
+    return {
+      nodes,
+      relations: mergeParallel(relations),
+      containment,
+      truncated,
+    };
   }
 
   /** Nearest ancestor-or-self of `id` that is in `set`. */
@@ -390,16 +454,33 @@ export class FixtureDataSource implements DataSource {
       properties: Object.keys(n.props).length,
       docs: (this.docsByTarget.get(`node:${n.id}`) ?? []).length,
       diagrams: (this.diagramsByTarget.get(`node:${n.id}`) ?? []).length,
-      relations: (this.relsBySource.get(n.id)?.length ?? 0) + (this.relsByTarget.get(n.id)?.length ?? 0),
+      relations:
+        (this.relsBySource.get(n.id)?.length ?? 0) +
+        (this.relsByTarget.get(n.id)?.length ?? 0),
       monitoring: mon
         ? {
             health: mon.health,
             alerts: mon.alerts.length,
-            headline: head ? { label: head.label, value: head.current, unit: head.unit } : undefined,
+            headline: head
+              ? { label: head.label, value: head.current, unit: head.unit }
+              : undefined,
           }
         : null,
       owner: owner ? { id: owner.id, name: owner.name } : null,
     };
+  }
+
+  /** How many nodes in this one, itself included, report degraded or down. */
+  private alertsOf(id: Id): number {
+    let n = 0;
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop()!;
+      const h = this.monitoring.get(cur)?.health;
+      if (h === "degraded" || h === "down") n++;
+      stack.push(...(this.children.get(cur) ?? []));
+    }
+    return n;
   }
 
   private healthOf(n: GraphNode): Health {
@@ -435,7 +516,8 @@ export class FixtureDataSource implements DataSource {
 
   async getDocCounts(targets: DocTarget[]) {
     const out: Record<string, number> = {};
-    for (const t of targets) out[targetKey(t)] = (this.docsByTarget.get(targetKey(t)) ?? []).length;
+    for (const t of targets)
+      out[targetKey(t)] = (this.docsByTarget.get(targetKey(t)) ?? []).length;
     return out;
   }
 
@@ -477,7 +559,8 @@ export class FixtureDataSource implements DataSource {
         key: `relation:${r.id}`,
         type: "relation",
         refId: r.id,
-        title: r.name ?? `${nameOf(r.sourceId)} ${def.label} ${nameOf(r.targetId)}`,
+        title:
+          r.name ?? `${nameOf(r.sourceId)} ${def.label} ${nameOf(r.targetId)}`,
         body: `${r.description ?? ""} ${Object.values(r.props).join(" ")}`,
         tags: r.type.replace(/_/g, " "),
         meta: `${nameOf(r.sourceId)} ${def.label} ${nameOf(r.targetId)} relation`,
@@ -491,7 +574,9 @@ export class FixtureDataSource implements DataSource {
         title: d.title,
         body: d.content.replace(/[#*`|>_-]/g, " "),
         tags: `${d.docType} ${d.audience.join(" ")}`,
-        meta: d.attachedTo.map((t) => this.targetName(t)).join(" ") + ` ${d.author}`,
+        meta:
+          d.attachedTo.map((t) => this.targetName(t)).join(" ") +
+          ` ${d.author}`,
       });
     }
     for (const d of docs) this.indexDocs.set(d.key, d);
@@ -512,7 +597,10 @@ export class FixtureDataSource implements DataSource {
     if (t.type === "node") return this.nodes.get(t.id)?.name ?? t.id;
     const r = this.relations.get(t.id);
     if (!r) return t.id;
-    return r.name ?? `${this.nodes.get(r.sourceId)?.name} ${RELATION_TYPES[r.type].label} ${this.nodes.get(r.targetId)?.name}`;
+    return (
+      r.name ??
+      `${this.nodes.get(r.sourceId)?.name} ${RELATION_TYPES[r.type].label} ${this.nodes.get(r.targetId)?.name}`
+    );
   }
 
   async search(query: string, opts: SearchOptions = {}): Promise<SearchHit[]> {
@@ -524,12 +612,14 @@ export class FixtureDataSource implements DataSource {
     // Choosing a node kind narrows the results to nodes of that kind.
     const filter = (r: SearchResult) => {
       if (types && !types.has(r.type)) return false;
-      if (kinds && !(r.type === "node" && kinds.has(r.kind as string))) return false;
+      if (kinds && !(r.type === "node" && kinds.has(r.kind as string)))
+        return false;
       return true;
     };
 
     let results = this.index.search(q, { combineWith: "AND", filter });
-    if (results.length === 0) results = this.index.search(q, { combineWith: "OR", filter });
+    if (results.length === 0)
+      results = this.index.search(q, { combineWith: "OR", filter });
 
     const limit = opts.limit ?? 30;
     const hits: SearchHit[] = [];
@@ -550,7 +640,9 @@ export class FixtureDataSource implements DataSource {
         type: "node",
         id: n.id,
         title: n.name,
-        subtitle: [kind.label, ...(anc.length ? [anc.join(" › ")] : [])].join(" · "),
+        subtitle: [kind.label, ...(anc.length ? [anc.join(" › ")] : [])].join(
+          " · ",
+        ),
         snippet: n.summary,
         kind: n.kind,
         anchorNodeId: n.id,
@@ -578,7 +670,8 @@ export class FixtureDataSource implements DataSource {
     }
     const d = this.docs.get(idx.refId)!;
     const first = d.attachedTo[0];
-    const anchor = first.type === "node" ? first.id : this.relations.get(first.id)!.sourceId;
+    const anchor =
+      first.type === "node" ? first.id : this.relations.get(first.id)!.sourceId;
     return {
       key: idx.key,
       type: "doc",
@@ -601,7 +694,11 @@ function push<K, V>(map: Map<K, V[]>, key: K, value: V) {
 }
 
 function snippetFor(content: string, terms: string[]): string {
-  const plain = content.replace(/```[\s\S]*?```/g, " ").replace(/[#*`>|]/g, " ").replace(/\s+/g, " ").trim();
+  const plain = content
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[#*`>|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const lower = plain.toLowerCase();
   let pos = -1;
   for (const t of terms) {

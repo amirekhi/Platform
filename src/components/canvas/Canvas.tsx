@@ -37,7 +37,16 @@ import {
   HighlightContext,
   type GraphFlowNode,
 } from "./GraphNodeCard";
+import { useTheme } from "@/lib/theme";
+import { FocusCard } from "./FocusCard";
+import { HintBar, useCanvasShortcuts } from "./HintBar";
+import { HoverCard } from "./HoverCard";
 import { Legend } from "./Legend";
+import { LensLegend } from "./LensLegend";
+import { LensContext } from "./lensContext";
+import { buildLensState } from "@/domain/lenses";
+import { arrowSize, lineWidth } from "./lineWidth";
+import { useSmoothWheelZoom } from "./useSmoothZoom";
 import { NODE_H, NODE_W, computeLayout, detailSlots } from "./layout";
 
 const nodeTypes = { graph: GraphNodeCard, detail: DetailBubble };
@@ -102,39 +111,64 @@ export function Canvas({ tab }: { tab: Tab }) {
       ? `anim-${motion.kind}`
       : "";
 
+  useCanvasShortcuts(tab, loaded?.view);
+  const lensViewNodes = loaded?.view.nodes;
+  const lensFocus = tab.lensFocus;
+  const lensState = useMemo(
+    () => buildLensState(lensViewNodes ?? [], tab.lens, lensFocus),
+    [lensViewNodes, tab.lens, lensFocus],
+  );
+
   return (
-    <ReactFlowProvider>
-      <div className="relative h-full w-full">
-        <div
-          className={`absolute inset-0 ${anim} ${lead ? "motion-lead" : ""}`}
-        >
-          {loaded ? (
-            <Flow
-              key={loaded.flowKey}
-              loaded={loaded}
-              detailsOpen={tab.detailsOpen}
+    <LensContext.Provider value={lensState}>
+      <ReactFlowProvider>
+        <div className="flex h-full w-full flex-col">
+          <div className="relative min-h-0 w-full flex-1">
+            <div
+              className={`absolute inset-0 ${anim} ${lead ? "motion-lead" : ""}`}
+            >
+              {loaded ? (
+                <Flow
+                  key={loaded.flowKey}
+                  loaded={loaded}
+                  detailsOpen={tab.detailsOpen}
+                  rootId={scope.rootId}
+                />
+              ) : (
+                <Centered>Loading…</Centered>
+              )}
+            </div>
+            <CanvasBar tab={tab} view={loaded?.view} />
+            <FocusCard
               rootId={scope.rootId}
+              mode={scope.mode}
+              view={loaded?.view}
             />
-          ) : (
-            <Centered>Loading…</Centered>
-          )}
+            <LensLegend state={lensState} />
+            <Legend />
+            {loaded && loaded.view.nodes.length === 0 && (
+              <Centered>
+                {scope.mode === "inside"
+                  ? "Nothing inside this node."
+                  : "Nothing to show."}
+              </Centered>
+            )}
+          </div>
+          <HintBar tab={tab} view={loaded?.view} />
+          <HoverCard />
         </div>
-        <CanvasBar tab={tab} view={loaded?.view} />
-        <Legend />
-        {loaded && loaded.view.nodes.length === 0 && (
-          <Centered>
-            {scope.mode === "inside"
-              ? "Nothing inside this node."
-              : "Nothing to show."}
-          </Centered>
-        )}
-      </div>
-    </ReactFlowProvider>
+      </ReactFlowProvider>
+    </LensContext.Provider>
   );
 }
 
 type AnyNode = GraphFlowNode | DetailFlowNode;
 type AnyEdge = RelationFlowEdge | ContainmentFlowEdge | Edge;
+
+const NOTHING_LEAVING: { nodes: AnyNode[]; edges: AnyEdge[] } = {
+  nodes: [],
+  edges: [],
+};
 
 function build(
   view: GraphView,
@@ -242,12 +276,22 @@ function build(
       sourceHandle: vertical ? "bottom" : "r",
       target: r.targetId,
       targetHandle: vertical ? "tin" : "l",
-      data: { rel: r, index: idx, total: pairCount.get(k) ?? 1 },
+      data: {
+        rel: r,
+        index: idx,
+        total: pairCount.get(k) ?? 1,
+      },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: RELATION_TYPES[r.type].color,
-        width: 16,
-        height: 16,
+        // Fixed pixel size (not scaled by the line), so thick lines keep a sensible arrowhead.
+        markerUnits: "userSpaceOnUse",
+        width: arrowSize(
+          lineWidth(r.count ?? r.viaIds?.length ?? 1, Boolean(r.derived)),
+        ),
+        height: arrowSize(
+          lineWidth(r.count ?? r.viaIds?.length ?? 1, Boolean(r.derived)),
+        ),
       },
     } as RelationFlowEdge);
   }
@@ -266,7 +310,7 @@ function Flow({
   const { view } = loaded;
   const select = useApp((s) => s.select);
   const focusNode = useApp((s) => s.focusNode);
-  const { fitView } = useReactFlow();
+  const { fitView, zoomIn, zoomOut } = useReactFlow();
 
   // Only the open nodes that are actually in this view affect the layout.
   const openKey = useMemo(
@@ -280,6 +324,13 @@ function Flow({
   );
   // Phones lay the graph out top to bottom to use the tall screen.
   const device = useDevice();
+  const theme = useTheme();
+  const liteNow = useLite();
+  useSmoothWheelZoom({
+    minZoom: device === "desktop" ? 0.15 : 0.05,
+    maxZoom: 2.6,
+    instant: prefersReducedMotion() || liteNow,
+  });
   const vertical = device === "mobile";
   const built = useMemo(
     () =>
@@ -317,7 +368,9 @@ function Flow({
     }
     // The ends of a selected relation stay readable while the rest recedes.
     const sr = selectedRel
-      ? view.relations.find((r) => r.id === selectedRel)
+      ? view.relations.find(
+          (r) => r.id === selectedRel || r.memberIds?.includes(selectedRel),
+        )
       : undefined;
     if (sr) {
       set.add(sr.sourceId);
@@ -327,6 +380,11 @@ function Flow({
   }, [view, highlightIds, selectedRel]);
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(built.nodes);
   const [prevBuilt, setPrevBuilt] = useState(built);
+  // Things that were just removed stay on screen for a moment and fade away.
+  const [leaving, setLeaving] = useState<{
+    nodes: AnyNode[];
+    edges: AnyEdge[];
+  }>(NOTHING_LEAVING);
   const nodesRef = useRef(nodes);
   useEffect(() => {
     nodesRef.current = nodes;
@@ -340,6 +398,29 @@ function Flow({
     if (reduced) {
       setNodes(built.nodes);
     } else {
+      if (built.nodes.length <= 90) {
+        const keep = new Set(built.nodes.map((n) => n.id));
+        const keepE = new Set(built.edges.map((e) => e.id));
+        const goneN = nodes
+          .filter((n) => !keep.has(n.id))
+          .map(
+            (n) =>
+              ({
+                ...n,
+                className: `${n.className ?? ""} node-leaving`,
+                selectable: false,
+                draggable: false,
+              }) as AnyNode,
+          );
+        const goneE = prevBuilt.edges
+          .filter((e) => !keepE.has(e.id))
+          .map((e) => ({ ...e, className: "edge-leaving" }) as AnyEdge);
+        setLeaving(
+          goneN.length || goneE.length
+            ? { nodes: goneN, edges: goneE }
+            : NOTHING_LEAVING,
+        );
+      }
       const here = new Map(nodes.map((n) => [n.id, n.position]));
       const anchor =
         here.get(motion?.anchorId ?? rootId ?? "") ?? built.nodes[0]?.position;
@@ -360,6 +441,22 @@ function Flow({
       );
     }
   }
+
+  useEffect(() => {
+    if (leaving === NOTHING_LEAVING) return;
+    const t = setTimeout(() => setLeaving(NOTHING_LEAVING), 340);
+    return () => clearTimeout(t);
+  }, [leaving]);
+  const shownNodes = useMemo(() => {
+    if (leaving === NOTHING_LEAVING) return nodes;
+    const have = new Set(nodes.map((n) => n.id));
+    return [...nodes, ...leaving.nodes.filter((n) => !have.has(n.id))];
+  }, [nodes, leaving]);
+  const shownEdges = useMemo(() => {
+    if (leaving === NOTHING_LEAVING) return built.edges;
+    const have = new Set(built.edges.map((e) => e.id));
+    return [...built.edges, ...leaving.edges.filter((e) => !have.has(e.id))];
+  }, [built.edges, leaving]);
 
   const firstBuild = useRef(true);
   useEffect(() => {
@@ -469,8 +566,8 @@ function Flow({
       <ReactFlow
         onlyRenderVisibleElements
         nodesDraggable
-        nodes={nodes}
-        edges={built.edges}
+        nodes={shownNodes}
+        edges={shownEdges}
         onNodesChange={onNodesChange}
         onInit={(rf) => {
           if (device !== "desktop")
@@ -503,6 +600,7 @@ function Flow({
         }}
         onPaneClick={() => select(null)}
         zoomOnDoubleClick={false}
+        zoomOnScroll={false}
         fitView
         fitViewOptions={{ padding: 0.18, minZoom: fitMin, maxZoom: 1 }}
         minZoom={device === "desktop" ? 0.15 : 0.05}
@@ -511,7 +609,7 @@ function Flow({
         elementsSelectable={false}
         deleteKeyCode={null}
         proOptions={{ hideAttribution: true }}
-        colorMode="system"
+        colorMode={theme}
       >
         <Background
           variant={BackgroundVariant.Dots}
@@ -519,7 +617,18 @@ function Flow({
           size={1.4}
           color="var(--canvas-dot)"
         />
-        <Controls showInteractive={false} position="bottom-left" />
+        <Controls
+          showInteractive={false}
+          position="bottom-left"
+          onZoomIn={() => void zoomIn({ duration: 320 })}
+          onZoomOut={() => void zoomOut({ duration: 320 })}
+          fitViewOptions={{
+            padding: 0.18,
+            minZoom: fitMin,
+            maxZoom: 1,
+            duration: 450,
+          }}
+        />
         {!lite && device === "desktop" && (
           <MiniMap
             pannable

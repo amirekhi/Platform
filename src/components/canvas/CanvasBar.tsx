@@ -2,6 +2,7 @@
 
 import {
   ArrowUp,
+  AlertTriangle,
   ArrowUpFromLine,
   ScanEye,
   Highlighter,
@@ -21,6 +22,8 @@ import { useMemo, useState } from "react";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { GraphView, RelationType } from "@/domain/types";
 import { useDevice } from "@/lib/useDevice";
+import { LENSES, LENS_BY_ID } from "@/domain/lenses";
+import { LensIcon } from "./lensIcons";
 import { LOD_OPTIONS, useLevel } from "./lod";
 import { currentScope, type Tab, useApp } from "@/state/store";
 
@@ -28,6 +31,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
   const toggle = useApp((s) => s.toggleRelationType);
   const setContainment = useApp((s) => s.setShowContainment);
   const setLifted = useApp((s) => s.setShowLifted);
+  const setLens = useApp((s) => s.setLens);
   const setExternal = useApp((s) => s.setShowExternal);
   const setRadius = useApp((s) => s.setRadius);
   const setDetailsFor = useApp((s) => s.setDetailsFor);
@@ -41,6 +45,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
   const collapseAll = useApp((s) => s.collapseAllExpanded);
 
   const [filterOpen, setFilterOpen] = useState(false);
+  const [lensOpen, setLensOpen] = useState(false);
   const phone = useDevice() === "mobile";
   const [controlsOpen, setControlsOpen] = useState(false);
   const scope = currentScope(tab);
@@ -52,6 +57,15 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
   const allOpen =
     members.length > 0 && members.every((id) => tab.detailsOpen.includes(id));
 
+  const problemCount = useMemo(
+    () =>
+      (view?.nodes ?? []).filter(
+        (n) =>
+          n.role !== "ghost" &&
+          (n.health === "degraded" || n.health === "down" || n.alertCount > 0),
+      ).length,
+    [view],
+  );
   const counts = useMemo(() => {
     const m = new Map<RelationType, number>();
     for (const r of view?.relations ?? [])
@@ -222,6 +236,19 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
           </button>
         )}
         <Toggle
+          on={tab.lens === "problems"}
+          onClick={() => setLens(tab.lens === "problems" ? "kind" : "problems")}
+          title="Problems lens: dim everything healthy so only what is degraded or down stands out"
+          icon={<AlertTriangle size={12} />}
+        >
+          Problems
+          {problemCount > 0 && (
+            <span className="ml-0.5 rounded-full bg-[#ef4444] px-1.5 text-[10px] font-bold leading-4 text-white">
+              {problemCount}
+            </span>
+          )}
+        </Toggle>
+        <Toggle
           on={tab.showLifted}
           onClick={() => setLifted(!tab.showLifted)}
           title="Include links that exist only between what nodes contain, drawn as dotted lifted relations"
@@ -273,6 +300,79 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
         <div className="relative">
           <button
             type="button"
+            onClick={() => setLensOpen((o) => !o)}
+            aria-expanded={lensOpen}
+            title="Lenses: choose what the colours mean, for your role"
+            className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium ${
+              tab.lens !== "kind"
+                ? "bg-accent-soft text-accent"
+                : "text-muted hover:bg-panel2"
+            }`}
+          >
+            <LensIcon name={LENS_BY_ID[tab.lens].icon} size={12} />
+            Lens
+            {tab.lens !== "kind" && (
+              <span className="max-w-[7rem] truncate">
+                · {LENS_BY_ID[tab.lens].label}
+              </span>
+            )}
+            <ChevronDown size={12} />
+          </button>
+          {lensOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setLensOpen(false)}
+                aria-hidden
+              />
+              <div className="pop-in absolute left-0 top-full z-20 mt-1.5 max-h-[70vh] w-[19rem] max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line bg-panel p-1.5 shadow-[var(--shadow)]">
+                <p className="px-2 pb-1 pt-0.5 text-[10.5px] text-muted">
+                  A lens changes what colour means. Pick the question you are
+                  asking.
+                </p>
+                {LENSES.map((l) => {
+                  const on = tab.lens === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => {
+                        setLens(l.id);
+                        setLensOpen(false);
+                      }}
+                      aria-pressed={on}
+                      className={`flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-panel2 ${
+                        on ? "bg-accent-soft" : ""
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 ${on ? "text-accent" : "text-muted"}`}
+                      >
+                        <LensIcon name={l.icon} size={15} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={`block text-[12px] font-semibold ${on ? "text-accent" : "text-ink"}`}
+                        >
+                          {l.label}
+                        </span>
+                        <span className="block text-[11px] leading-snug text-muted">
+                          {l.question}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] text-muted/80">
+                          For: {l.audience}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="relative">
+          <button
+            type="button"
             onClick={() => setFilterOpen((o) => !o)}
             aria-expanded={filterOpen}
             title="Choose which relation types are drawn"
@@ -296,7 +396,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
                 onClick={() => setFilterOpen(false)}
                 aria-hidden
               />
-              <div className="absolute left-0 top-full z-20 mt-1.5 w-60 rounded-xl border border-line bg-panel p-1.5 shadow-[var(--shadow)]">
+              <div className="pop-in absolute left-0 top-full z-20 mt-1.5 w-60 rounded-xl border border-line bg-panel p-1.5 shadow-[var(--shadow)]">
                 {types.length === 0 && (
                   <p className="px-2 py-1.5 text-[12px] text-muted">
                     No relations in view
