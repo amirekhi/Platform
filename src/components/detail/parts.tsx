@@ -21,6 +21,7 @@ const Markdown = dynamic(
 import { MermaidView } from "../docs/MermaidView";
 import {
   DocRecordPanel,
+  DocSupports,
   openDeviations,
   signatureSummary,
   StatusBadge,
@@ -323,6 +324,7 @@ function DocViewer({
           every version is kept in full and can be compared with any other.
         </p>
       )}
+      <DocSupports docId={doc.id} />
       {record && (
         <DocRecordPanel
           doc={doc}

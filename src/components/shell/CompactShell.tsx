@@ -28,6 +28,8 @@ import { SearchPalette } from "../search/SearchPalette";
 import { Explorer } from "./Explorer";
 import { useExitable } from "@/lib/useExitable";
 import { PerfMenu } from "./PerfMenu";
+import { ComplianceView } from "../compliance/ComplianceView";
+import { ComplianceButton } from "../compliance/ComplianceButton";
 import { HelpMenu } from "@/components/help/HelpMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { TabBar } from "./TabBar";
@@ -45,6 +47,7 @@ export function CompactShell({
 }) {
   const setSearchOpen = useApp((s) => s.setSearchOpen);
   const select = useApp((s) => s.select);
+  const view = useApp((s) => s.view);
   const [drawer, setDrawer] = useState(false);
   const [sheet, setSheet] = useState(false);
 
@@ -94,6 +97,7 @@ export function CompactShell({
               <span className="flex-1 text-left">Search</span>
             )}
           </button>
+          <ComplianceButton />
           <ThemeToggle />
           <HelpMenu />
           <PerfMenu />
@@ -104,7 +108,10 @@ export function CompactShell({
       </header>
 
       <main className="relative min-h-0 flex-1">
-        {tab ? <Canvas key={tab.id} tab={tab} /> : null}
+        <div className={view === "compliance" ? "invisible h-full" : "h-full"}>
+          {tab ? <Canvas key={tab.id} tab={tab} /> : null}
+        </div>
+        {view === "compliance" && <ComplianceView />}
       </main>
 
       {/* Peek: what is selected, one tap from its details. */}

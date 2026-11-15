@@ -21,11 +21,20 @@ import type {
 import {
   type DataSource,
   type DocFamily,
+  type DocSupportView,
   type LinkedDoc,
   type ScopeQuery,
   targetKey,
 } from "./datasource";
 import { DIAGRAMS } from "./fixture/diagrams";
+import type { ComplianceModel } from "@/domain/compliance";
+import {
+  CONTROLS,
+  FRAMEWORKS,
+  PROGRAMMES,
+  REQUIREMENTS,
+  SUPPORTS,
+} from "./fixture/compliance";
 import { ALL_DOCS as DOCS } from "./fixture/records";
 import { buildMonitoring } from "./fixture/monitoring";
 import { NODES } from "./fixture/nodes";
@@ -528,6 +537,45 @@ export class FixtureDataSource implements DataSource {
 
   async getDoc(id: Id) {
     return this.docs.get(id);
+  }
+
+  async getCompliance(): Promise<ComplianceModel> {
+    return {
+      frameworks: FRAMEWORKS,
+      requirements: REQUIREMENTS,
+      controls: CONTROLS,
+      programmes: PROGRAMMES,
+      supports: SUPPORTS,
+      docs: [...this.docs.values()],
+    };
+  }
+
+  async getDocSupports(docId: Id): Promise<DocSupportView[]> {
+    const out: DocSupportView[] = [];
+    for (const sp of SUPPORTS.filter((x) => x.docId === docId)) {
+      const programme = PROGRAMMES.find((p) => p.id === sp.programmeId);
+      const requirement = REQUIREMENTS.find((r) => r.id === sp.requirementId);
+      const framework = FRAMEWORKS.find(
+        (f) => f.id === requirement?.frameworkId,
+      );
+      if (!programme || !requirement || !framework) continue;
+      out.push({
+        programme,
+        system: this.nodes.get(programme.nodeId),
+        framework,
+        requirement,
+        role: sp.role,
+        controls: CONTROLS.filter((c) =>
+          c.requirementIds.includes(requirement.id),
+        ).map((control) => ({
+          control,
+          nodes: control.enforcedAt
+            .map((id) => this.nodes.get(id))
+            .filter((n): n is GraphNode => !!n),
+        })),
+      });
+    }
+    return out;
   }
 
   async getDocFamily(id: Id): Promise<DocFamily> {

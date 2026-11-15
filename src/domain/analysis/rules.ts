@@ -42,4 +42,7 @@ export const IMPACT_RULES: Record<RelationType, ImpactRule> = {
   references: { flows: "none", strength: "soft" },
   monitors: { flows: "none", strength: "soft" },
   tracks: { flows: "none", strength: "soft" },
+  supported_by: { flows: "to-source", strength: "hard" },
+  performed_by: { flows: "to-target", strength: "soft" },
+  involves: { flows: "to-target", strength: "soft" },
 };

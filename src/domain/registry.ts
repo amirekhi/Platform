@@ -6,6 +6,8 @@ import type { Lifecycle, NodeKind, RelationType } from "./types";
  */
 export type Layer =
   | "organisation"
+  | "party"
+  | "process"
   | "business"
   | "application"
   | "data"
@@ -16,13 +18,15 @@ export type Layer =
 
 export const LAYERS: { id: Layer; label: string; order: number }[] = [
   { id: "organisation", label: "Organisation", order: 0 },
-  { id: "business", label: "Business systems", order: 1 },
-  { id: "application", label: "Applications & services", order: 2 },
-  { id: "data", label: "Data", order: 3 },
-  { id: "delivery", label: "Delivery", order: 4 },
-  { id: "infrastructure", label: "Infrastructure", order: 5 },
-  { id: "physical", label: "Physical & hardware", order: 6 },
-  { id: "external", label: "External", order: 7 },
+  { id: "party", label: "Clients & roles", order: 1 },
+  { id: "process", label: "Business processes", order: 2 },
+  { id: "business", label: "Business systems", order: 3 },
+  { id: "application", label: "Applications & services", order: 4 },
+  { id: "data", label: "Data", order: 5 },
+  { id: "delivery", label: "Delivery", order: 6 },
+  { id: "infrastructure", label: "Infrastructure", order: 7 },
+  { id: "physical", label: "Physical & hardware", order: 8 },
+  { id: "external", label: "External", order: 9 },
 ];
 
 /** Silhouette drawn for a kind (see components/shapes.tsx). */
@@ -56,7 +60,10 @@ export type ShapeId =
   | "datacenter"
   | "rack"
   | "chassis"
-  | "switch";
+  | "switch"
+  | "process"
+  | "person"
+  | "badge";
 
 export interface KindDef {
   label: string;
@@ -339,6 +346,33 @@ export const NODE_KINDS: Record<NodeKind, KindDef> = {
     monitorable: true,
     shape: "switch",
   },
+  process: {
+    label: "Process",
+    plural: "Processes",
+    color: "#f472b6",
+    layer: "process",
+    icon: "process",
+    monitorable: false,
+    shape: "process",
+  },
+  role: {
+    label: "Role",
+    plural: "Roles",
+    color: "#fb923c",
+    layer: "party",
+    icon: "role",
+    monitorable: false,
+    shape: "person",
+  },
+  client: {
+    label: "Client",
+    plural: "Clients",
+    color: "#22d3ee",
+    layer: "party",
+    icon: "client",
+    monitorable: false,
+    shape: "badge",
+  },
 };
 
 export interface RelationDef {
@@ -475,6 +509,24 @@ export const RELATION_TYPES: Record<RelationType, RelationDef> = {
     label: "connects to",
     inverse: "connects to",
     color: "#94a3b8",
+    async: false,
+  },
+  supported_by: {
+    label: "is supported by",
+    inverse: "supports",
+    color: "#e879f9",
+    async: false,
+  },
+  performed_by: {
+    label: "is performed by",
+    inverse: "performs",
+    color: "#fdba74",
+    async: false,
+  },
+  involves: {
+    label: "involves",
+    inverse: "is involved in",
+    color: "#7dd3fc",
     async: false,
   },
 };

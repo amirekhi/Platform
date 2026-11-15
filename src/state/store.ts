@@ -164,6 +164,9 @@ interface AppState {
   setShowContainment: (show: boolean) => void;
   setShowLifted: (show: boolean) => void;
   setLens: (lens: LensId) => void;
+  /** What fills the main area: the graph or the compliance overview. */
+  view: "graph" | "compliance";
+  setView: (v: "graph" | "compliance") => void;
   hoverNode: { view: NodeView; rect: DOMRect } | null;
   setHoverNode: (h: { view: NodeView; rect: DOMRect } | null) => void;
   setLensFocus: (key: string | null) => void;
@@ -583,6 +586,8 @@ export const useApp = create<AppState>((set, get) => ({
   setShowContainment: (show) =>
     set((s) => patchActive(s, { showContainment: show })),
   setShowLifted: (show) => set((s) => patchActive(s, { showLifted: show })),
+  view: "graph",
+  setView: (view) => set({ view }),
   hoverNode: null,
   setHoverNode: (h) => set({ hoverNode: h }),
   setLens: (lens) => set((s) => patchActive(s, { lens, lensFocus: null })),

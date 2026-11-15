@@ -315,4 +315,76 @@ r("obs-prom", "monitors", "hw-fra-a12-07", {
 });
 r("obs-prom", "monitors", "net-core-01");
 
+/* ---------- Business processes: who does them, who they serve, what runs them ---------- */
+const sup = (proc: string, target: string, description?: string) =>
+  r(proc, "supported_by", target, { description });
+const by = (proc: string, role: string) => r(proc, "performed_by", role);
+const inv = (proc: string, client: string) => r(proc, "involves", client);
+
+sup("proc-o2c", "sys-checkout", "Checkout turns the cart into a paid order.");
+sup("proc-o2c", "sys-storefront");
+sup("proc-o2c", "sys-fulfilment");
+sup("proc-take-order", "sys-storefront");
+sup("proc-take-order", "svc-checkout");
+sup(
+  "proc-take-payment",
+  "svc-payments",
+  "Only the Payments Service talks to the provider.",
+);
+sup("proc-ship", "sys-fulfilment");
+sup("proc-invoice", "sys-erp");
+sup("proc-returns", "sys-fulfilment");
+inv("proc-o2c", "cl-online");
+inv("proc-o2c", "cl-wholesale");
+inv("proc-take-order", "cl-online");
+inv("proc-take-payment", "cl-online");
+inv("proc-ship", "cl-online");
+inv("proc-o2c", "cl-auditors");
+by("proc-returns", "role-support");
+by("proc-invoice", "role-finance-ctrl");
+by("proc-ship", "role-picker");
+
+sup("proc-fulfil", "sys-wms");
+sup("proc-pick", "app-scanner");
+sup("proc-dispatch", "sys-fulfilment");
+by("proc-pick", "role-picker");
+by("proc-fulfil", "role-picker");
+inv("proc-fulfil", "cl-wholesale");
+
+sup("proc-p2p", "sys-erp");
+sup("proc-approve-po", "sys-erp");
+sup("proc-receive", "sys-wms");
+sup("proc-pay-supplier", "sys-erp");
+by("proc-approve-po", "role-finance-ctrl");
+by("proc-pay-supplier", "role-finance-ctrl");
+
+sup("proc-close", "sys-erp");
+sup("proc-close", "sys-data");
+by("proc-close", "role-finance-ctrl");
+inv("proc-close", "cl-auditors");
+
+sup("proc-access", "sys-identity");
+sup("proc-access", "sys-hr");
+sup("proc-grant", "svc-auth");
+sup("proc-review-access", "sys-identity");
+sup("proc-remove", "sys-hr");
+by("proc-review-access", "role-qa");
+inv("proc-access", "cl-auditors");
+
+sup("proc-release", "sys-platform");
+sup("proc-build-test", "pipe-checkout");
+sup("proc-build-test", "pipe-catalog");
+sup("proc-approve-change", "sys-platform");
+sup("proc-deploy", "dep-checkout-prod");
+by("proc-approve-change", "role-release-mgr");
+by("proc-release", "role-qa");
+inv("proc-release", "cl-auditors");
+
+sup("proc-catalog", "sys-catalog");
+by("proc-catalog", "role-support");
+
+sup("proc-store-ops", "sys-pos");
+by("proc-store-ops", "role-store-mgr");
+inv("proc-store-ops", "cl-instore");
+
 export const RELATIONS: Relation[] = out;

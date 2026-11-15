@@ -14,10 +14,28 @@ import type {
   SearchOptions,
 } from "@/domain/types";
 
+import type {
+  ComplianceModel,
+  Control,
+  Framework,
+  Programme,
+  Requirement,
+  SupportRole,
+} from "@/domain/compliance";
 import type { DocLinkType } from "@/domain/documents";
 import type { GraphSnapshot } from "@/domain/analysis";
 
 /** Where a document sits among others of the same topic. */
+export interface DocSupportView {
+  programme: Programme;
+  system?: GraphNode;
+  framework: Framework;
+  requirement: Requirement;
+  role: SupportRole;
+  /** Controls that meet this requirement, with the components that enforce each. */
+  controls: { control: Control; nodes: GraphNode[] }[];
+}
+
 export interface DocFamily {
   parent?: Doc;
   /** Nested under this document, in order. */
@@ -83,6 +101,10 @@ export interface DataSource {
   getLinkedDocs(id: Id): Promise<LinkedDoc[]>;
   /** Parent, nested documents and deviations of a document. */
   getDocFamily(id: Id): Promise<DocFamily>;
+  /** Frameworks, requirements, controls, programmes and the documents that support them. */
+  getCompliance(): Promise<ComplianceModel>;
+  /** What a document is gathered for: programme, requirement, and where it is enforced. */
+  getDocSupports(docId: Id): Promise<DocSupportView[]>;
   getDiagramsFor(target: DocTarget): Promise<Diagram[]>;
   getDocCounts(targets: DocTarget[]): Promise<Record<string, number>>;
 

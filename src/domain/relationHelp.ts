@@ -2,7 +2,8 @@ import type { RelationType } from "./types";
 
 /** One plain sentence per relation type: what it means and why you would care. */
 export const RELATION_HELP: Record<RelationType, string> = {
-  depends_on: "Needs the target to work. If the target fails, this is affected.",
+  depends_on:
+    "Needs the target to work. If the target fails, this is affected.",
   calls: "Makes live requests to the target and waits for the answer.",
   exposes: "Offers the target (an API or interface) for others to use.",
   reads_from: "Takes data from the target without changing it.",
@@ -17,11 +18,16 @@ export const RELATION_HELP: Record<RelationType, string> = {
   runs: "Executes the target while it is operating.",
   deployment_of: "Is one running copy of the target.",
   deployed_to: "Is installed on the target environment.",
-  runs_on: "Uses the target's computing power. If the target is down, so is this.",
+  runs_on:
+    "Uses the target's computing power. If the target is down, so is this.",
   hosted_on: "Physically or virtually lives on the target.",
   monitors: "Watches the target and raises alerts about its health.",
   serves: "Provides its service to the target, such as a store or a team.",
   supplies: "Delivers goods or data to the target.",
   tracks: "Keeps a record of what happens to the target.",
   connects_to: "A plain network or physical link.",
+  supported_by:
+    "The process runs on the target system or component. If that fails, the process is affected.",
+  performed_by: "The target role carries out this process.",
+  involves: "The target client takes part in, or is served by, this process.",
 };

@@ -1,4 +1,16 @@
+import type { GraphSnapshot } from "./analysis/snapshot";
+import {
+  assessProgramme,
+  type ComplianceModel,
+  deviationCounter,
+} from "./compliance";
 import { HEALTH_COLOR, LAYERS, NODE_KINDS } from "./registry";
+import {
+  computeScope,
+  processFrameworks,
+  programmeFor,
+  supportingNodes,
+} from "./scope";
 import type { Id, NodeView } from "./types";
 
 /**
@@ -8,6 +20,9 @@ import type { Id, NodeView } from "./types";
 export type LensId =
   | "kind"
   | "problems"
+  | "business"
+  | "scope"
+  | "assurance"
   | "layer"
   | "owner"
   | "lifecycle"
@@ -17,6 +32,12 @@ export type LensId =
   | "monitoring"
   | "coupling"
   | "external";
+
+/** What the lenses that look beyond one node need: the whole graph and the compliance model. */
+export interface LensData {
+  snap: GraphSnapshot;
+  compliance: ComplianceModel;
+}
 
 export interface LensCategory {
   key: string;
@@ -38,7 +59,7 @@ export interface LensDef {
   tints: boolean;
   /** Dim everything that is not "attention" (heat-vision style). */
   dims: boolean;
-  classify?: (n: NodeView) => LensCategory | null;
+  classify?: (n: NodeView, data?: LensData) => LensCategory | null;
   /** Fixed order of categories in the legend (others appended as found). */
   order?: LensCategory[];
 }
@@ -65,6 +86,8 @@ const cat = (
 
 const LAYER_COLORS: Record<string, string> = {
   organisation: C.indigo,
+  party: "#22d3ee",
+  process: C.pink,
   business: C.violet,
   application: C.blue,
   data: C.teal,
@@ -102,6 +125,70 @@ const layerOf = (n: NodeView) => NODE_KINDS[n.kind].layer;
 
 const NO_PROBLEM = cat("healthy", "Healthy", C.green);
 
+/* ---- Lenses that look across the graph and the compliance model ---- */
+
+const PARTY = cat("client", "Clients", "#22d3ee", true);
+const ROLE = cat("role", "Roles", C.orange, true);
+const PROC = cat("process", "Business processes", C.pink, true);
+const RUNS = cat("runs", "Runs a process", C.violet, true);
+const OTHER_TECH = cat("tech", "Other technology", C.slate);
+
+/** Parts of the enterprise that are technology, as opposed to organisation, people and process. */
+const isTech = (n: NodeView) => {
+  const layer = layerOf(n);
+  return layer === "business" || TECH.has(layer) || layer === "external";
+};
+
+const SCOPE_PROC = cat("regproc", "Regulated process", C.amber, true);
+const SCOPE_OK = cat("scopeok", "In scope, has a programme", C.green, true);
+const SCOPE_GAP = cat("scopegap", "In scope, no programme", C.red, true);
+const SCOPE_NOT = cat("scopenot", "Not in scope", C.slate);
+
+const A_APPROVED = cat("a-ok", "All approved", C.green, true);
+const A_REVIEW = cat("a-review", "In review", C.blue, true);
+const A_WEAK = cat("a-weak", "Weak evidence", C.amber, true);
+const A_GAPS = cat("a-gaps", "Has gaps", C.red, true);
+const A_NONE = cat("a-none", "In scope, no programme", "#c084fc", true);
+const A_RANK = [A_NONE, A_GAPS, A_WEAK, A_REVIEW, A_APPROVED];
+
+const assuranceCache = new WeakMap<
+  ComplianceModel,
+  Map<string, LensCategory>
+>();
+/** One category per programme, from how its requirements stand. */
+function programmeCategory(
+  model: ComplianceModel,
+  programmeId: string,
+): LensCategory {
+  let m = assuranceCache.get(model);
+  if (!m) {
+    m = new Map();
+    const dev = deviationCounter(model.docs);
+    for (const p of model.programmes) {
+      const a = assessProgramme(p, model, dev);
+      m.set(
+        p.id,
+        a.counts[0] > 0
+          ? A_GAPS
+          : a.counts[1] > 0
+            ? A_WEAK
+            : a.counts[2] > 0
+              ? A_REVIEW
+              : A_APPROVED,
+      );
+    }
+    assuranceCache.set(model, m);
+  }
+  return m.get(programmeId) ?? A_NONE;
+}
+
+/** The assurance category of a technology node: its programme's, or "no programme" if in scope. */
+function assuranceOf(n: { id: string }, d: LensData): LensCategory | null {
+  if (!computeScope(d.snap).has(n.id)) return null;
+  const p = programmeFor(d.snap, d.compliance, n.id);
+  return p ? programmeCategory(d.compliance, p.id) : A_NONE;
+}
+
 export const LENSES: LensDef[] = [
   {
     id: "kind",
@@ -134,6 +221,68 @@ export const LENSES: LensDef[] = [
       cat("inside", "Problem inside", C.orange, true),
       NO_PROBLEM,
     ],
+  },
+  {
+    id: "business",
+    label: "Business map",
+    icon: "briefcase",
+    audience: "Business analysts, process owners, product",
+    question: "Who needs what, and which systems run which processes?",
+    tints: true,
+    dims: true,
+    classify: (n, d) => {
+      if (n.kind === "client") return PARTY;
+      if (n.kind === "role") return ROLE;
+      if (n.kind === "process") return PROC;
+      if (d && supportingNodes(d.snap).has(n.id)) return RUNS;
+      return isTech(n) ? OTHER_TECH : null;
+    },
+    order: [PARTY, ROLE, PROC, RUNS, OTHER_TECH],
+  },
+  {
+    id: "scope",
+    label: "Regulated scope",
+    icon: "crosshair",
+    audience: "Quality, compliance, auditors",
+    question:
+      "Which systems must be validated, and which of those have no programme?",
+    tints: true,
+    dims: true,
+    classify: (n, d) => {
+      if (!d) return null;
+      if (n.kind === "process")
+        return processFrameworks(d.snap, n.id).length ? SCOPE_PROC : null;
+      if (!isTech(n)) return null;
+      if (!computeScope(d.snap).has(n.id)) return SCOPE_NOT;
+      return programmeFor(d.snap, d.compliance, n.id) ? SCOPE_OK : SCOPE_GAP;
+    },
+    order: [SCOPE_GAP, SCOPE_PROC, SCOPE_OK, SCOPE_NOT],
+  },
+  {
+    id: "assurance",
+    label: "Assurance",
+    icon: "shield",
+    audience: "Quality, system owners, auditors",
+    question: "How solid is the evidence for each in-scope system and process?",
+    tints: true,
+    dims: true,
+    classify: (n, d) => {
+      if (!d) return null;
+      if (n.kind === "process") {
+        if (!processFrameworks(d.snap, n.id).length) return null;
+        // A process is only as assured as the weakest thing that runs it.
+        let worst: LensCategory | null = null;
+        for (const r of d.snap.outgoing.get(n.id) ?? []) {
+          if (r.type !== "supported_by") continue;
+          const c = assuranceOf({ id: r.targetId }, d);
+          if (c && (!worst || A_RANK.indexOf(c) < A_RANK.indexOf(worst)))
+            worst = c;
+        }
+        return worst;
+      }
+      return isTech(n) ? assuranceOf(n, d) : null;
+    },
+    order: [A_NONE, A_GAPS, A_WEAK, A_REVIEW, A_APPROVED],
   },
   {
     id: "layer",
@@ -338,6 +487,7 @@ export function buildLensState(
   nodes: NodeView[],
   id: LensId,
   focus: string | null,
+  data?: LensData,
 ): LensState {
   const def = LENS_BY_ID[id];
   const map = new Map<Id, LensCategory | null>();
@@ -345,7 +495,7 @@ export function buildLensState(
   if (def.classify) {
     for (const n of nodes) {
       if (n.role === "ghost") continue;
-      const c = def.classify(n);
+      const c = def.classify(n, data);
       map.set(n.id, c);
       if (c) {
         const e = counts.get(c.key) ?? { cat: c, count: 0 };

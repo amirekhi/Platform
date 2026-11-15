@@ -2,6 +2,8 @@ import {
   Activity,
   AlertTriangle,
   BookOpen,
+  Briefcase,
+  Crosshair,
   Building2,
   Flame,
   Hourglass,
@@ -25,6 +27,8 @@ const ICONS: Record<string, (s: number) => ReactNode> = {
   activity: (s) => <Activity size={s} />,
   network: (s) => <Network size={s} />,
   building: (s) => <Building2 size={s} />,
+  briefcase: (s) => <Briefcase size={s} />,
+  crosshair: (s) => <Crosshair size={s} />,
 };
 
 export function LensIcon({ name, size = 14 }: { name: string; size?: number }) {

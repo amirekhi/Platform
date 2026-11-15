@@ -1,4 +1,5 @@
 "use client";
+import { NodeCompliance } from "@/components/compliance/NodeCompliance";
 import { TryList } from "@/components/help/TryList";
 
 import {
@@ -318,6 +319,10 @@ function NodeOverview({
         <NodeChip id={node.ownerId} />
       ) : (
         <span className="text-[13px] text-muted">Unowned</span>
+      )}
+
+      {(node.kind === "system" || node.kind === "process") && (
+        <NodeCompliance nodeId={node.id} />
       )}
 
       {node.tags.length > 0 && (

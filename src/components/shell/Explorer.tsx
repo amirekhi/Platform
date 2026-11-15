@@ -14,6 +14,9 @@ export function Explorer() {
   const { data: roots } = useAsync("explorer-roots", () =>
     getDataSource().getRootNodes(),
   );
+  const { data: roles } = useAsync("explorer-roles", () =>
+    getDataSource().getNodesByKind("role"),
+  );
   const { data: teams } = useAsync("explorer-teams", () =>
     getDataSource().getNodesByKind("team"),
   );
@@ -34,7 +37,15 @@ export function Explorer() {
         Organisation
       </div>
       {roots
-        ?.filter((r) => r.kind !== "system")
+        ?.filter((r) => !["system", "process", "client"].includes(r.kind))
+        .map((r) => (
+          <TreeNode key={r.id} node={r} depth={0} />
+        ))}
+      <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        Business processes
+      </div>
+      {roots
+        ?.filter((r) => r.kind === "process")
         .map((r) => (
           <TreeNode key={r.id} node={r} depth={0} />
         ))}
@@ -46,6 +57,15 @@ export function Explorer() {
         .map((r) => (
           <TreeNode key={r.id} node={r} depth={0} />
         ))}
+      <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        Clients and roles
+      </div>
+      {[
+        ...(roots?.filter((r) => r.kind === "client") ?? []),
+        ...(roles ?? []),
+      ].map((t) => (
+        <TreeNode key={t.id} node={t} depth={0} leaf />
+      ))}
       <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
         Teams
       </div>

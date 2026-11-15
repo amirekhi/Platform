@@ -167,6 +167,33 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
       {R(c, { x: 42, y: 54, width: 52, height: 38, rx: 7 })}
     </>
   ),
+  process: (c) => (
+    <>
+      {R(c, { x: 5, y: 18, width: 90, height: 64, rx: 18 })}
+      {L(c, "M20 50 H64 M56 40 L66 50 L56 60")}
+      {L(c, "M76 40 V60")}
+    </>
+  ),
+  person: (c) => (
+    <>
+      <circle
+        {...(c.body as SVGProps<SVGCircleElement>)}
+        style={c.fill}
+        cx="50"
+        cy="29"
+        r="19"
+      />
+      {P(c, "M10 94 C10 66 28 56 50 56 C72 56 90 66 90 94 Z")}
+    </>
+  ),
+  badge: (c) => (
+    <>
+      {R(c, { x: 6, y: 12, width: 88, height: 76, rx: 12 })}
+      <circle cx="30" cy="42" r="9" fill={c.color} opacity=".55" />
+      {L(c, "M16 72 C16 60 44 60 44 72")}
+      {L(c, "M56 36 H82 M56 50 H82 M56 64 H74")}
+    </>
+  ),
   octagon: (c) => Poly(c, "31,5 69,5 95,31 95,69 69,95 31,95 5,69 5,31"),
   shield: (c) =>
     P(c, "M50 4 L91 17 V50 C91 75 72 89 50 97 C28 89 9 75 9 50 V17 Z"),

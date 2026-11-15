@@ -11,6 +11,8 @@ import { SearchPalette } from "../search/SearchPalette";
 import { Explorer } from "./Explorer";
 import { useExitable } from "@/lib/useExitable";
 import { PerfMenu } from "./PerfMenu";
+import { ComplianceView } from "../compliance/ComplianceView";
+import { ComplianceButton } from "../compliance/ComplianceButton";
 import { HelpMenu } from "@/components/help/HelpMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { TabBar } from "./TabBar";
@@ -24,6 +26,7 @@ export function AppShell() {
   const toggleExplorer = useApp((s) => s.toggleExplorer);
   const setDetailOpen = useApp((s) => s.setDetailOpen);
   const setSearchOpen = useApp((s) => s.setSearchOpen);
+  const view = useApp((s) => s.view);
 
   const device = useDevice();
   useEffect(() => {
@@ -68,6 +71,7 @@ export function AppShell() {
               ⌘K
             </kbd>
           </button>
+          <ComplianceButton />
           <ThemeToggle />
           <HelpMenu />
           <PerfMenu />
@@ -95,7 +99,13 @@ export function AppShell() {
           </div>
         )}
         <main className="relative min-w-0 flex-1">
-          {tab ? <Canvas key={tab.id} tab={tab} /> : null}
+          {/* The graph stays mounted underneath so nothing resets when you come back. */}
+          <div
+            className={view === "compliance" ? "invisible h-full" : "h-full"}
+          >
+            {tab ? <Canvas key={tab.id} tab={tab} /> : null}
+          </div>
+          {view === "compliance" && <ComplianceView />}
         </main>
         {dt.mounted && tab && (
           <div

@@ -1044,4 +1044,299 @@ n("db-hr", "database", "HR Database", "sys-hr", "Employee records.", {
   props: { engine: "PostgreSQL 17" },
 });
 
+/* ---------------- Clients, roles and business processes ---------------- */
+n(
+  "cl-online",
+  "client",
+  "Online shoppers",
+  null,
+  "Consumers who buy through the web shop and the mobile app.",
+  {
+    props: { segment: "Consumer", volume: "About 40,000 orders a week" },
+  },
+);
+n(
+  "cl-instore",
+  "client",
+  "In-store shoppers",
+  null,
+  "Customers who buy in a Northwind store.",
+  {
+    props: { segment: "Consumer" },
+  },
+);
+n(
+  "cl-wholesale",
+  "client",
+  "Wholesale buyers",
+  null,
+  "Business customers who order in bulk on account.",
+  {
+    props: { segment: "Business" },
+  },
+);
+n(
+  "cl-auditors",
+  "client",
+  "Regulators and auditors",
+  null,
+  "External bodies who inspect our controls and records.",
+  {
+    props: { segment: "Regulator" },
+  },
+);
+
+n(
+  "role-store-mgr",
+  "role",
+  "Store manager",
+  "co-retail",
+  "Runs a store: opens and closes the till, handles stock and staff.",
+  {
+    props: { kind: "Internal" },
+  },
+);
+n(
+  "role-support",
+  "role",
+  "Customer support agent",
+  "dept-ecom",
+  "Answers customers about orders, payments and returns.",
+  {
+    props: { kind: "Internal" },
+  },
+);
+n(
+  "role-picker",
+  "role",
+  "Warehouse picker",
+  "co-logistics",
+  "Picks and packs orders on the warehouse floor.",
+  {
+    props: { kind: "Internal" },
+  },
+);
+n(
+  "role-finance-ctrl",
+  "role",
+  "Finance controller",
+  "dept-finance",
+  "Owns the ledger, approves postings and signs off the close.",
+  {
+    props: { kind: "Internal" },
+  },
+);
+n(
+  "role-release-mgr",
+  "role",
+  "Release manager",
+  "dept-it",
+  "Approves production changes and records the evidence.",
+  {
+    props: { kind: "Internal" },
+  },
+);
+n(
+  "role-qa",
+  "role",
+  "Quality approver",
+  "co-group",
+  "Reviews and signs validation documents.",
+  {
+    props: { kind: "Internal" },
+  },
+);
+
+const P = (
+  id: string,
+  name: string,
+  parent: string | null,
+  summary: string,
+  props: Record<string, PropValue> = {},
+  owner?: string,
+) => n(id, "process", name, parent, summary, { props, owner });
+
+P(
+  "proc-o2c",
+  "Order to cash",
+  null,
+  "From a customer placing an order to the money being collected.",
+  { regulated: "PCI DSS; SOX ITGC", criticality: "high" },
+  "team-checkout",
+);
+P(
+  "proc-take-order",
+  "Take order",
+  "proc-o2c",
+  "Build a basket, confirm prices and place the order.",
+  { criticality: "high" },
+);
+P(
+  "proc-take-payment",
+  "Take payment",
+  "proc-o2c",
+  "Authorise and capture the customer's payment.",
+  { regulated: "PCI DSS", criticality: "high" },
+);
+P(
+  "proc-ship",
+  "Ship order",
+  "proc-o2c",
+  "Pick, pack and hand the order to the carrier.",
+  { criticality: "medium" },
+);
+P(
+  "proc-invoice",
+  "Invoice and collect",
+  "proc-o2c",
+  "Issue the invoice and reconcile the payment to the ledger.",
+  { regulated: "SOX ITGC", criticality: "high" },
+);
+P(
+  "proc-returns",
+  "Handle returns",
+  "proc-o2c",
+  "Accept a return and refund or replace.",
+  { criticality: "low" },
+);
+
+P(
+  "proc-fulfil",
+  "Warehouse fulfilment",
+  null,
+  "Receiving, storing and dispatching goods.",
+  { regulated: "EU Annex 11", criticality: "high" },
+  "team-fulfilment",
+);
+P(
+  "proc-pick",
+  "Pick and pack",
+  "proc-fulfil",
+  "Pick items against an order and pack them.",
+  { criticality: "medium" },
+);
+P(
+  "proc-dispatch",
+  "Dispatch and track",
+  "proc-fulfil",
+  "Hand over to the carrier and track the parcel.",
+  { criticality: "medium" },
+);
+
+P(
+  "proc-p2p",
+  "Procure to pay",
+  null,
+  "Buying goods and services and paying suppliers.",
+  { regulated: "SOX ITGC", criticality: "high" },
+  "team-corp",
+);
+P(
+  "proc-approve-po",
+  "Approve purchase",
+  "proc-p2p",
+  "Raise and approve a purchase order.",
+  { criticality: "medium" },
+);
+P(
+  "proc-receive",
+  "Receive goods",
+  "proc-p2p",
+  "Confirm delivery against the order.",
+  { criticality: "medium" },
+);
+P(
+  "proc-pay-supplier",
+  "Pay supplier",
+  "proc-p2p",
+  "Match the invoice and release payment.",
+  { regulated: "SOX ITGC", criticality: "high" },
+);
+
+P(
+  "proc-close",
+  "Financial close",
+  null,
+  "Month-end and year-end closing of the books.",
+  { regulated: "SOX ITGC", criticality: "high" },
+  "team-corp",
+);
+
+P(
+  "proc-access",
+  "Joiner, mover, leaver",
+  null,
+  "Giving, changing and removing people's access.",
+  { regulated: "SOX ITGC; NW-POL-001", criticality: "high" },
+  "team-identity",
+);
+P(
+  "proc-grant",
+  "Grant access",
+  "proc-access",
+  "Approve and provision a new account.",
+  { criticality: "medium" },
+);
+P(
+  "proc-review-access",
+  "Review access",
+  "proc-access",
+  "Quarterly review of who can do what.",
+  { criticality: "high" },
+);
+P(
+  "proc-remove",
+  "Remove access",
+  "proc-access",
+  "Disable accounts when people leave.",
+  { criticality: "high" },
+);
+
+P(
+  "proc-release",
+  "Software release and change",
+  null,
+  "Getting a change from a commit into production with approval and evidence.",
+  { regulated: "NW-POL-001; PCI DSS", criticality: "high" },
+  "team-platform",
+);
+P(
+  "proc-build-test",
+  "Build and test",
+  "proc-release",
+  "Build the change and run the automated tests.",
+  { criticality: "high" },
+);
+P(
+  "proc-approve-change",
+  "Approve change",
+  "proc-release",
+  "Assess impact and approve the change.",
+  { criticality: "high" },
+);
+P(
+  "proc-deploy",
+  "Deploy to production",
+  "proc-release",
+  "Release the approved build to production.",
+  { criticality: "high" },
+);
+
+P(
+  "proc-catalog",
+  "Product catalog management",
+  null,
+  "Keeping product data, prices and search accurate.",
+  { criticality: "medium" },
+  "team-catalog",
+);
+P(
+  "proc-store-ops",
+  "Run a store",
+  null,
+  "Selling in store: till, stock and daily close.",
+  { regulated: "PCI DSS", criticality: "high" },
+  "team-retailops",
+);
+
 export const NODES: GraphNode[] = out;

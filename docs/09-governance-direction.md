@@ -76,3 +76,27 @@ Three distinct relationships, all first-class:
 - **A note that needs documenting.** A comment can be flagged as needing a document. It stays open work until a document covers it, and then it points at that document.
 
 Links between documents (references, satisfies, evidences, supersedes, reviews) are separate from these and describe how documents relate, not where they sit.
+
+## 10. The compliance model (built, read-only)
+
+Documents are never gathered "in general". Each one is gathered for a requirement, in a system's programme.
+
+- **Framework**: a regulation, standard or corporate policy, with a version and a precedence. A policy can be built on regulations (`derivedFrom`).
+- **Requirement**: one clause of a framework. The same for every system.
+- **Control**: how we meet requirements, and the components that enforce it (`enforcedAt`, which are graph nodes such as a pipeline or a service). A control with no components is a visible gap.
+- **Programme**: one system's stance (CSV or CSA, risk level, which frameworks). A system can have several; a system with none is shown as "no programme".
+- **DocSupport**: a document that defines or evidences a requirement for a programme.
+- **Solidity** per requirement: None, Claimed, In review, Approved. It is the weakest of what the requirement needs (for example both a protocol and an executed report), lowered by drafts, signatures that no longer match the text, missing signers, and open deviations. Every step down is given as a reason.
+
+Seen in: the Compliance view (programmes and frameworks), a system's Compliance section, and "Gathered for" on each document.
+
+## 11. The business layer: where scope starts
+
+CSV and CSA apply to enterprise systems because they run regulated business processes, so the model starts there.
+
+- New node kinds: `process` (nestable, may carry `regulated`), `role`, `client`. New layers "Clients & roles" and "Business processes".
+- New relations: `supported_by` (process to the system that runs it), `performed_by` (process to role), `involves` (process to client).
+- Scope is derived, not entered: a process is regulated through its own `regulated` property or an ancestor's. Whatever a regulated process is `supported_by` (and that target's descendants and ancestors) is in scope. A programme belongs to the nearest ancestor-or-self that has one.
+- Lenses: Business map, Regulated scope, Assurance (per programme: gaps / claimed / in review / approved; processes take the worst of what runs them).
+- Compliance view splits "In scope, no programme" (the gap list) from "Not in scope" (to be recorded as a decision).
+- Fixture data is illustrative only.

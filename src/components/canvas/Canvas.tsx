@@ -124,9 +124,23 @@ export function Canvas({ tab }: { tab: Tab }) {
   useHistoryShortcuts();
   const lensViewNodes = loaded?.view.nodes;
   const lensFocus = tab.lensFocus;
+  // Some lenses look across the whole graph and the compliance model.
+  const { data: lensSnap } = useAsync("snapshot", () =>
+    getDataSource().getSnapshot(),
+  );
+  const { data: lensCompliance } = useAsync("compliance", () =>
+    getDataSource().getCompliance(),
+  );
+  const lensData = useMemo(
+    () =>
+      lensSnap && lensCompliance
+        ? { snap: lensSnap, compliance: lensCompliance }
+        : undefined,
+    [lensSnap, lensCompliance],
+  );
   const lensState = useMemo(
-    () => buildLensState(lensViewNodes ?? [], tab.lens, lensFocus),
-    [lensViewNodes, tab.lens, lensFocus],
+    () => buildLensState(lensViewNodes ?? [], tab.lens, lensFocus, lensData),
+    [lensViewNodes, tab.lens, lensFocus, lensData],
   );
 
   const { snap, result } = useAnalysis(tab.analysis);

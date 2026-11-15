@@ -40,7 +40,10 @@ export type NodeKind =
   | "datacenter"
   | "rack"
   | "hardware"
-  | "network";
+  | "network"
+  | "process"
+  | "role"
+  | "client";
 
 export type RelationType =
   | "depends_on"
@@ -64,7 +67,10 @@ export type RelationType =
   | "serves"
   | "supplies"
   | "tracks"
-  | "connects_to";
+  | "connects_to"
+  | "supported_by"
+  | "performed_by"
+  | "involves";
 
 export type Lifecycle =
   | "proposed"

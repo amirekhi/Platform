@@ -8,6 +8,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
+import { SUPPORT_ROLE } from "@/domain/compliance";
 import { getDataSource } from "@/data";
 import type { DocFamily } from "@/data/datasource";
 import {
@@ -25,6 +26,7 @@ import {
 import type { Doc } from "@/domain/types";
 import { useAsync } from "@/lib/useAsync";
 import { navigateTo } from "@/state/navigate";
+import { useApp } from "@/state/store";
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, {
@@ -458,6 +460,83 @@ export function DocRecordPanel({
         <ShieldCheck size={11} /> Read-only until the database and storage are
         connected.
       </p>
+    </div>
+  );
+}
+
+/** What this document is gathered for: programme, requirement, and where it is enforced. */
+export function DocSupports({ docId }: { docId: string }) {
+  const { data } = useAsync(`docsupports:${docId}`, () =>
+    getDataSource().getDocSupports(docId),
+  );
+  const setView = useApp((s) => s.setView);
+  if (!data) return null;
+  return (
+    <div className="mt-6 rounded-xl border border-line bg-panel p-3">
+      <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+        <ShieldCheck size={12} /> Gathered for
+      </div>
+      {data.length === 0 ? (
+        <p className="text-[12.5px] text-[#f59e0b]">
+          This document is not linked to any requirement, so nothing says what
+          it proves. Link it to a requirement in a programme, or it is just a
+          file.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {data.map((s) => (
+            <li key={s.programme.id + s.requirement.id}>
+              <div className="text-[12.5px] text-ink">
+                <b>{s.system?.name ?? s.programme.nodeId}</b>{" "}
+                <span className="rounded bg-accent-soft px-1 text-[10.5px] font-semibold text-accent">
+                  {s.programme.approach}
+                </span>{" "}
+                <span className="text-muted">against</span> {s.framework.short}{" "}
+                <span className="font-mono text-[11.5px]">
+                  {s.requirement.ref}
+                </span>
+              </div>
+              <div className="text-[12px] text-muted">
+                {s.requirement.title} · {SUPPORT_ROLE[s.role]}
+              </div>
+              {s.controls.map(({ control, nodes }) => (
+                <div
+                  key={control.id}
+                  className="mt-1 flex flex-wrap items-center gap-1 text-[11.5px]"
+                >
+                  <span className="text-muted">Enforced at</span>
+                  {nodes.length ? (
+                    nodes.map((n) => (
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => {
+                          setView("graph");
+                          void navigateTo({ type: "node", id: n.id });
+                        }}
+                        className="rounded-md border border-line px-1.5 py-0.5 text-ink hover:border-accent"
+                      >
+                        {n.name}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="font-medium text-[#ef4444]">
+                      nothing yet
+                    </span>
+                  )}
+                </div>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
+      <button
+        type="button"
+        onClick={() => setView("compliance")}
+        className="mt-3 text-[12px] font-medium text-accent hover:underline"
+      >
+        Open in Compliance
+      </button>
     </div>
   );
 }
