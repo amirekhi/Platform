@@ -6,6 +6,8 @@
  * Documents and diagrams attach to nodes OR relations.
  */
 
+import type { DocRecord } from "./documents";
+
 export type Id = string;
 
 export type NodeKind =
@@ -117,7 +119,16 @@ export type DocType =
   | "user-guide"
   | "contract"
   | "onboarding"
-  | "reference";
+  | "reference"
+  | "policy"
+  | "sop"
+  | "validation-plan"
+  | "urs"
+  | "risk-assessment"
+  | "protocol"
+  | "test-report"
+  | "deviation"
+  | "note";
 
 export interface Doc {
   id: Id;
@@ -134,6 +145,8 @@ export interface Doc {
   author: string;
   revision: number;
   updatedAt: string; // ISO
+  /** Status, versions, signatures, comments and links to other documents. */
+  record?: DocRecord;
 }
 
 export interface Diagram {

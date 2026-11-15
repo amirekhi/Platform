@@ -10,6 +10,8 @@ import {
 } from "@xyflow/react";
 import { ArrowUpFromLine, FileText } from "lucide-react";
 import { memo, useContext } from "react";
+import { AnalysisContext } from "@/components/analysis/context";
+import { ANALYSIS_COLOR } from "@/components/analysis/marks";
 import { LensContext } from "./lensContext";
 import { lineStyle } from "@/domain/relationStyle";
 import { RELATION_TYPES } from "@/domain/registry";
@@ -66,8 +68,17 @@ function RelationEdgeImpl({
     !lens.hot.has(rel.targetId) &&
     !selected,
   );
-  const faded = (anyHl && !lit && !selected) || lensDim;
-  const labelOn = (level > 0 || selected || lit) && !lensDim;
+  // Blast radius / path trace: its lines glow in the analysis colour, the rest step back.
+  const an = useContext(AnalysisContext);
+  const anLit = Boolean(an?.edgeLit(rel.sourceId, rel.targetId));
+  const anDim = Boolean(an && !anLit && !selected);
+  const anColor = anLit
+    ? an!.kind === "path"
+      ? ANALYSIS_COLOR.path
+      : ANALYSIS_COLOR.hard
+    : undefined;
+  const faded = (anyHl && !lit && !selected) || lensDim || anDim;
+  const labelOn = (level > 0 || selected || lit || anLit) && !lensDim && !anDim;
 
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -105,32 +116,34 @@ function RelationEdgeImpl({
         markerEnd={markerEnd}
         interactionWidth={18}
         className={
-          def.async && !derived && level > 0 && !lite ? "edge-async" : undefined
+          (def.async && !derived && level > 0 && !lite) || (anLit && !lite)
+            ? "edge-async"
+            : undefined
         }
         style={{
-          stroke: def.color,
+          stroke: anColor ?? def.color,
           strokeWidth: selected
             ? Math.max(3.6, widthFor + 1.6)
-            : lit
-              ? Math.max(3, widthFor + 1)
+            : lit || anLit
+              ? Math.max(3.4, widthFor + 1.2)
               : widthFor,
           filter: selected
             ? `drop-shadow(0 0 5px ${def.color})`
-            : lit
-              ? `drop-shadow(0 0 4px ${def.color})`
+            : lit || anLit
+              ? `drop-shadow(0 0 4px ${anColor ?? def.color})`
               : undefined,
           transition: "opacity 250ms, stroke-width 250ms",
           strokeDasharray: derived
             ? `0.1 ${Math.max(6, widthFor * 1.8)}`
-            : def.async
+            : def.async || anLit
               ? "6 4"
               : undefined,
           strokeLinecap: derived ? "round" : undefined,
-          opacity: selected || lit ? 1 : faded ? 0.12 : 0.8,
+          opacity: selected || lit || anLit ? 1 : faded ? 0.12 : 0.8,
         }}
       />
       {/* Mixed line: each kind takes a turn along the stone base, like a barber pole. */}
-      {ls.mixed && !derived && (
+      {ls.mixed && !derived && !anLit && (
         <>
           {ls.kinds.map((k, i) => (
             <path

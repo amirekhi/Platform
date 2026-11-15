@@ -14,6 +14,25 @@ import type {
   SearchOptions,
 } from "@/domain/types";
 
+import type { DocLinkType } from "@/domain/documents";
+import type { GraphSnapshot } from "@/domain/analysis";
+
+/** Where a document sits among others of the same topic. */
+export interface DocFamily {
+  parent?: Doc;
+  /** Nested under this document, in order. */
+  children: Doc[];
+  /** Deviation reports raised against this document. */
+  deviations: Doc[];
+}
+
+export interface LinkedDoc {
+  type: DocLinkType;
+  /** "out": this document links to it. "in": it links to this document. */
+  direction: "out" | "in";
+  doc: Doc;
+}
+
 export interface ScopeQuery {
   /** Null with mode "inside" is the landscape (everything at the top of the enterprise). */
   rootId: Id | null;
@@ -60,8 +79,18 @@ export interface DataSource {
 
   getDocsFor(target: DocTarget): Promise<Doc[]>;
   getDoc(id: Id): Promise<Doc | undefined>;
+  /** Documents this one links to and documents that link to it, with the direction. */
+  getLinkedDocs(id: Id): Promise<LinkedDoc[]>;
+  /** Parent, nested documents and deviations of a document. */
+  getDocFamily(id: Id): Promise<DocFamily>;
   getDiagramsFor(target: DocTarget): Promise<Diagram[]>;
   getDocCounts(targets: DocTarget[]): Promise<Record<string, number>>;
+
+  /**
+   * The whole graph as an immutable, indexed snapshot, for analysis that is not about one view
+   * (blast radius, path trace, and later proposal validation). Cheap to call repeatedly.
+   */
+  getSnapshot(): Promise<GraphSnapshot>;
 
   getMonitoring(nodeId: Id): Promise<MonitoringSnapshot | null>;
 

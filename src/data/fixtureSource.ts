@@ -18,11 +18,18 @@ import type {
   SearchHit,
   SearchOptions,
 } from "@/domain/types";
-import { type DataSource, type ScopeQuery, targetKey } from "./datasource";
+import {
+  type DataSource,
+  type DocFamily,
+  type LinkedDoc,
+  type ScopeQuery,
+  targetKey,
+} from "./datasource";
 import { DIAGRAMS } from "./fixture/diagrams";
-import { DOCS } from "./fixture/docs";
+import { ALL_DOCS as DOCS } from "./fixture/records";
 import { buildMonitoring } from "./fixture/monitoring";
 import { NODES } from "./fixture/nodes";
+import { buildSnapshot, type GraphSnapshot } from "@/domain/analysis";
 import { RELATIONS } from "./fixture/relations";
 
 const HEALTH_RANK: Record<Health, number> = {
@@ -439,6 +446,17 @@ export class FixtureDataSource implements DataSource {
   }
 
   /** Nearest ancestor-or-self of `id` that is in `set`. */
+  private snapshot?: GraphSnapshot;
+
+  async getSnapshot(): Promise<GraphSnapshot> {
+    this.snapshot ??= buildSnapshot(
+      this.nodes.values(),
+      this.relations.values(),
+      "fixture",
+    );
+    return this.snapshot;
+  }
+
   private liftTo(id: Id, set: Set<Id>): Id | undefined {
     let cur = this.nodes.get(id);
     while (cur) {
@@ -510,6 +528,34 @@ export class FixtureDataSource implements DataSource {
 
   async getDoc(id: Id) {
     return this.docs.get(id);
+  }
+
+  async getDocFamily(id: Id): Promise<DocFamily> {
+    const me = this.docs.get(id);
+    const parentId = me?.record?.parentId;
+    const all = [...this.docs.values()];
+    return {
+      parent: parentId ? this.docs.get(parentId) : undefined,
+      children: all
+        .filter((d) => d.record?.parentId === id)
+        .sort((a, b) => (a.record?.order ?? 0) - (b.record?.order ?? 0)),
+      deviations: all.filter(
+        (d) => d.record?.deviation?.raisedAgainst.docId === id,
+      ),
+    };
+  }
+
+  async getLinkedDocs(id: Id): Promise<LinkedDoc[]> {
+    const out: LinkedDoc[] = [];
+    for (const l of this.docs.get(id)?.record?.links ?? []) {
+      const doc = this.docs.get(l.targetDocId);
+      if (doc) out.push({ type: l.type, direction: "out", doc });
+    }
+    for (const d of this.docs.values())
+      for (const l of d.record?.links ?? [])
+        if (l.targetDocId === id)
+          out.push({ type: l.type, direction: "in", doc: d });
+    return out;
   }
 
   async getDiagramsFor(target: DocTarget) {

@@ -30,7 +30,8 @@ export function useCanvasShortcuts(tab: Tab, view?: GraphView) {
         return;
       }
       if (k === "escape") {
-        if (tab.selection) st.select(null);
+        if (tab.analysis) st.clearAnalysis();
+        else if (tab.selection) st.select(null);
         else if (tab.highlightIds.length && !tab.highlightTransient)
           st.clearHighlights();
         return;
@@ -53,6 +54,8 @@ export function useCanvasShortcuts(tab: Tab, view?: GraphView) {
       else if (k === "h") st.toggleHighlight(n.id);
       else if (k === "d") st.toggleDetails(n.id);
       else if (k === "f") void st.focusNode(n.id);
+      else if (k === "b") st.startBlast(n.id);
+      else if (k === "t") st.startPath(n.id);
       else return;
       e.preventDefault();
     };
@@ -99,7 +102,20 @@ export function HintBar({ tab, view }: { tab: Tab; view?: GraphView }) {
   const n = selectedNode(tab, view);
   let lead = "";
   let hints: Hint[];
-  if (n) {
+  const an = tab.analysis;
+  if (an?.kind === "path" && an.toId === null) {
+    lead = "Trace a path";
+    hints = [
+      ["Click", "the destination node"],
+      ["Esc", "cancel"],
+    ];
+  } else if (an) {
+    lead = an.kind === "blast" ? "Blast radius" : "Path trace";
+    hints = [
+      ["Click", "a node to look closer"],
+      ["Esc", "close"],
+    ];
+  } else if (n) {
     const expanded = tab.expandedIds.includes(n.id);
     const open = tab.openIds.includes(n.id);
     const lit = tab.highlightIds.includes(n.id);
@@ -113,6 +129,8 @@ export function HintBar({ tab, view }: { tab: Tab; view?: GraphView }) {
     hints.push(["H", lit ? "clear spotlight" : "spotlight"]);
     hints.push(["D", details ? "hide details" : "details"]);
     hints.push(["F", "focus"]);
+    hints.push(["B", "blast radius"]);
+    hints.push(["T", "trace path"]);
     if (tab.path.length > 1) hints.push(["Backspace", "go up"]);
     hints.push(["Esc", "deselect"]);
   } else if (tab.selection?.type === "relation") {

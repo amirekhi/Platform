@@ -17,8 +17,7 @@ import {
   Minimize2,
   Orbit,
   Shrink,
-  SquareArrowOutUpRight,
-} from "lucide-react";
+  SquareArrowOutUpRight, Flame, Route as RouteIcon } from "lucide-react";
 import { useDevice } from "@/lib/useDevice";
 import {
   createContext,
@@ -33,6 +32,8 @@ import type { NodeView } from "@/domain/types";
 import { useApp, useLite } from "@/state/store";
 import { KindIcon } from "../icons";
 import { LENS_BY_ID } from "@/domain/lenses";
+import { AnalysisContext } from "@/components/analysis/context";
+import { ANALYSIS_COLOR } from "@/components/analysis/marks";
 import { LensContext } from "./lensContext";
 import { KindShape } from "../shapes";
 import { NODE_H, NODE_W, RING, SHAPE } from "./layout";
@@ -85,6 +86,28 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   const lensCat = lens ? (lens.cat.get(v.id) ?? null) : null;
   const lensDef = lens ? LENS_BY_ID[lens.id] : null;
   const isGhost = v.role === "ghost";
+  // Blast radius / path trace: affected shapes get a ring and a number; the rest step back.
+  const an = useContext(AnalysisContext);
+  const anMark = an?.node.get(v.id) ?? null;
+  const anDim = Boolean(an && !anMark && !selected);
+  const anColor = anMark
+    ? anMark.role === "origin"
+      ? ANALYSIS_COLOR.origin
+      : anMark.role === "hard"
+        ? ANALYSIS_COLOR.hard
+        : anMark.role === "soft"
+          ? ANALYSIS_COLOR.soft
+          : ANALYSIS_COLOR.path
+    : null;
+  const anLabel = anMark
+    ? anMark.role === "origin"
+      ? "ORIGIN"
+      : anMark.role === "start"
+        ? "A"
+        : anMark.role === "end"
+          ? "B"
+          : String(anMark.n ?? "")
+    : "";
   // With a recolouring lens the shape wears the lens colour; nodes outside the lens look neutral.
   const tint =
     lensDef?.tints && !isGhost ? (lensCat?.color ?? "var(--muted)") : undefined;
@@ -105,6 +128,12 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   const focusNode = useApp((s) => s.focusNode);
   const drillInto = useApp((s) => s.drillInto);
   const openNode = useApp((s) => s.openNode);
+  const startBlast = useApp((s) => s.startBlast);
+  const startPath = useApp((s) => s.startPath);
+  const blastOn = useApp((s) => {
+    const a = s.tabs.find((x) => x.id === s.activeTabId)?.analysis;
+    return a?.kind === "blast" && a.rootId === v.id;
+  });
 
   const isRoot = v.role === "root";
   const ghost = v.role === "ghost";
@@ -192,6 +221,23 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               <Crosshair size={14} />
             </ToolButton>
           )}
+          {!ghost && (
+            <ToolButton
+              label="Blast radius: what breaks if this goes down (B)"
+              active={blastOn}
+              onClick={() => startBlast(v.id)}
+            >
+              <Flame size={14} />
+            </ToolButton>
+          )}
+          {!ghost && (
+            <ToolButton
+              label="Trace a path from here (T)"
+              onClick={() => startPath(v.id)}
+            >
+              <RouteIcon size={14} />
+            </ToolButton>
+          )}
           <ToolButton
             label="Open in new tab"
             onClick={() => void openNode(v.id, { newTab: true })}
@@ -216,7 +262,11 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             boxShadow: glow
               ? `0 0 0 2px ${glow}66, 0 0 14px ${glow}55`
               : "var(--shadow)",
-            opacity: leaving ? 0 : lensDim ? 0.16 : receded ? 0.45 : 1,
+            outline: anColor
+              ? `3px ${anMark?.role === "soft" ? "dashed" : "solid"} ${anColor}`
+              : undefined,
+            outlineOffset: anColor ? 3 : undefined,
+            opacity: leaving ? 0 : lensDim || anDim ? 0.16 : receded ? 0.45 : 1,
           }}
         >
           <Handle id="l" type="target" position={Position.Left} />
@@ -293,7 +343,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             height: NODE_H,
             opacity: leaving
               ? 0
-              : lensDim
+              : lensDim || anDim
                 ? 0.16
                 : receded
                   ? 0.3
@@ -368,6 +418,24 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             )}
             {showHealth && (
               <HealthMark v={v} className="absolute -right-2 -top-2" />
+            )}
+            {anColor && (
+              <>
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -inset-3 rounded-[24px] transition-opacity duration-300"
+                  style={{
+                    border: `3px ${anMark?.role === "soft" ? "dashed" : "solid"} ${anColor}`,
+                    boxShadow: lite ? undefined : `0 0 16px ${anColor}88`,
+                  }}
+                />
+                <span
+                  className="pointer-events-none absolute left-1/2 -top-[22px] z-10 -translate-x-1/2 rounded-full px-1.5 py-px text-[10px] font-bold leading-4 text-white"
+                  style={{ background: anColor }}
+                >
+                  {anLabel}
+                </span>
+              </>
             )}
             {highlighted && (
               <span
@@ -509,6 +577,16 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 onClick={() => toggleHighlight(v.id)}
               >
                 <Highlighter size={17} />
+              </TouchBtn>
+              <TouchBtn
+                label="Blast radius"
+                active={blastOn}
+                onClick={() => startBlast(v.id)}
+              >
+                <Flame size={17} />
+              </TouchBtn>
+              <TouchBtn label="Trace a path" onClick={() => startPath(v.id)}>
+                <RouteIcon size={17} />
               </TouchBtn>
               {canExpand && (
                 <TouchBtn

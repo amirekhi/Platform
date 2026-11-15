@@ -19,6 +19,13 @@ const Markdown = dynamic(
   },
 );
 import { MermaidView } from "../docs/MermaidView";
+import {
+  DocRecordPanel,
+  openDeviations,
+  signatureSummary,
+  StatusBadge,
+  useFamily,
+} from "./DocRecordView";
 import { KindIcon } from "../icons";
 
 export function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -122,6 +129,7 @@ export function DocsPane({ target }: { target: DocTarget }) {
   if (open)
     return (
       <DocViewer
+        key={open.id}
         doc={open}
         onBack={() => setDocId(null)}
         currentTarget={target}
@@ -140,34 +148,74 @@ export function DocsPane({ target }: { target: DocTarget }) {
       </Empty>
     );
   }
+  // Documents nested under another document of the same topic sit beneath it.
+  const ids = new Set(docs.map((d) => d.id));
+  const kids = (id: string) =>
+    docs
+      .filter((d) => d.record?.parentId === id)
+      .sort((x, y) => (x.record?.order ?? 0) - (y.record?.order ?? 0));
+  const roots = docs.filter(
+    (d) => !d.record?.parentId || !ids.has(d.record.parentId),
+  );
+  const openDev = (id: string) =>
+    docs.filter(
+      (d) =>
+        d.record?.deviation?.raisedAgainst.docId === id &&
+        d.record.deviation.status !== "closed",
+    ).length;
+  const Row = ({ d, nested }: { d: Doc; nested?: boolean }) => (
+    <li>
+      <button
+        type="button"
+        onClick={() => setDocId(d.id)}
+        className={`w-full rounded-lg border border-line bg-panel text-left hover:border-accent ${nested ? "p-2.5" : "p-3"}`}
+      >
+        <div className="flex items-start gap-2">
+          <FileText size={15} className="mt-0.5 shrink-0 text-muted" />
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-ink">{d.title}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+              {d.record && <StatusBadge status={d.record.status} />}
+              <span className="rounded bg-panel2 px-1.5 py-px font-medium uppercase tracking-wide">
+                {d.record?.stage ? `${d.record.stage} · ` : ""}
+                {d.docType}
+              </span>
+              {d.record && <span className="font-mono">{d.record.key}</span>}
+              <span>v{d.revision}</span>
+              {!nested && kids(d.id).length > 0 && (
+                <span className="rounded-full bg-panel2 px-1.5">
+                  {kids(d.id).length} part{kids(d.id).length > 1 ? "s" : ""}
+                </span>
+              )}
+              {openDev(d.id) > 0 && (
+                <span className="rounded-full bg-[#ef444418] px-1.5 font-semibold text-[#ef4444]">
+                  {openDev(d.id)} open deviation{openDev(d.id) > 1 ? "s" : ""}
+                </span>
+              )}
+              <span>·</span>
+              <span>{d.author}</span>
+            </div>
+          </div>
+        </div>
+      </button>
+    </li>
+  );
   return (
     <ul className="space-y-2">
-      {docs.map((d) => (
-        <li key={d.id}>
-          <button
-            type="button"
-            onClick={() => setDocId(d.id)}
-            className="w-full rounded-lg border border-line bg-panel p-3 text-left hover:border-accent"
-          >
-            <div className="flex items-start gap-2">
-              <FileText size={15} className="mt-0.5 shrink-0 text-muted" />
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-ink">
-                  {d.title}
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-                  <span className="rounded bg-panel2 px-1.5 py-px font-medium uppercase tracking-wide">
-                    {d.docType}
-                  </span>
-                  <span>rev {d.revision}</span>
-                  <span>·</span>
-                  <span>{new Date(d.updatedAt).toLocaleDateString()}</span>
-                  <span>·</span>
-                  <span>{d.author}</span>
-                </div>
-              </div>
-            </div>
-          </button>
+      {roots.map((d) => (
+        <li key={d.id} className="list-none">
+          <ul className="space-y-1.5">
+            <Row d={d} />
+            {kids(d.id).length > 0 && (
+              <li className="list-none">
+                <ul className="ml-4 space-y-1.5 border-l-2 border-line pl-3">
+                  {kids(d.id).map((c) => (
+                    <Row key={c.id} d={c} nested />
+                  ))}
+                </ul>
+              </li>
+            )}
+          </ul>
         </li>
       ))}
     </ul>
@@ -183,6 +231,18 @@ function DocViewer({
   onBack: () => void;
   currentTarget: DocTarget;
 }) {
+  const [picked, setPicked] = useState<number | null>(null);
+  const record = doc.record;
+  const current = record?.versions[0];
+  const shown =
+    record?.versions.find(
+      (v) => v.revision === (picked ?? current?.revision),
+    ) ?? current;
+  const isCurrent = !record || shown?.revision === current?.revision;
+  const text = isCurrent ? doc.content : shown?.content;
+  const warn = record && shown ? signatureSummary(shown, shown.status) : null;
+  const { data: family } = useFamily(doc.id);
+  const devs = openDeviations(family);
   const others = doc.attachedTo.filter(
     (t) => !(t.type === currentTarget.type && t.id === currentTarget.id),
   );
@@ -196,14 +256,17 @@ function DocViewer({
         <ArrowLeft size={13} /> All documents
       </button>
       <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+        {record && shown && <StatusBadge status={shown.status} />}
         <span className="rounded bg-panel2 px-1.5 py-px font-medium uppercase tracking-wide">
+          {record?.stage ? `${record.stage} · ` : ""}
           {doc.docType}
         </span>
-        <span>rev {doc.revision}</span>
+        {record && <span className="font-mono">{record.key}</span>}
+        <span>v{shown?.revision ?? doc.revision}</span>
         <span>·</span>
         <span>{doc.author}</span>
         <span>·</span>
-        <span>{new Date(doc.updatedAt).toLocaleDateString()}</span>
+        <span>{new Date(shown?.at ?? doc.updatedAt).toLocaleDateString()}</span>
         {doc.audience.map((a) => (
           <span
             key={a}
@@ -221,7 +284,53 @@ function DocViewer({
           ))}
         </div>
       )}
-      <Markdown>{doc.content}</Markdown>
+      {devs.length > 0 && (
+        <div className="mb-3 rounded-lg border border-[#ef4444] px-3 py-2 text-[12px] text-[#ef4444]">
+          {devs.length} open deviation{devs.length > 1 ? "s" : ""} found against
+          this document.{" "}
+          <span className="text-muted">See Deviations below.</span>
+        </div>
+      )}
+      {warn && (
+        <div
+          role="alert"
+          className="mb-3 rounded-lg border px-3 py-2 text-[12px]"
+          style={{
+            borderColor: warn.tone === "bad" ? "#ef4444" : "#f59e0b",
+            color: warn.tone === "bad" ? "#ef4444" : "#f59e0b",
+          }}
+        >
+          {warn.text}. <span className="text-muted">See Signatures below.</span>
+        </div>
+      )}
+      {!isCurrent && current && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-panel2 px-3 py-2 text-[12px] text-muted">
+          You are reading v{shown?.revision}, which is not the current version.
+          <button
+            type="button"
+            onClick={() => setPicked(null)}
+            className="ml-auto font-medium text-accent hover:underline"
+          >
+            Go to v{current.revision}
+          </button>
+        </div>
+      )}
+      {text ? (
+        <Markdown>{text}</Markdown>
+      ) : (
+        <p className="rounded-lg border border-dashed border-line p-4 text-[12.5px] text-muted">
+          The text of this version is not in the demo data. In the real system
+          every version is kept in full and can be compared with any other.
+        </p>
+      )}
+      {record && (
+        <DocRecordPanel
+          doc={doc}
+          record={record}
+          revision={shown?.revision ?? doc.revision}
+          onSelect={setPicked}
+        />
+      )}
     </article>
   );
 }
@@ -233,7 +342,12 @@ export function DiagramsPane({ target }: { target: DocTarget }) {
     getDataSource().getDiagramsFor(target),
   );
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
-  if (!data.length) return <Empty>No diagrams yet. Diagrams you attach to this node will appear here.</Empty>;
+  if (!data.length)
+    return (
+      <Empty>
+        No diagrams yet. Diagrams you attach to this node will appear here.
+      </Empty>
+    );
   return (
     <div className="space-y-5">
       {data.map((d) => (

@@ -10,6 +10,8 @@ import {
   Maximize2,
   SquareArrowOutUpRight,
   X,
+  Flame,
+  Route as RouteIcon,
 } from "lucide-react";
 import { getDataSource } from "@/data";
 import {
@@ -228,6 +230,8 @@ function NodeOverview({
   contained: GraphNode[];
 }) {
   const openNode = useApp((s) => s.openNode);
+  const startBlast = useApp((s) => s.startBlast);
+  const startPath = useApp((s) => s.startPath);
   const focusNode = useApp((s) => s.focusNode);
   const drillInto = useApp((s) => s.drillInto);
   const toggleOpen = useApp((s) => s.toggleOpen);
@@ -286,6 +290,20 @@ function NodeOverview({
             Go inside ({contained.length})
           </ActionButton>
         )}
+        <ActionButton
+          onClick={() => startBlast(node.id)}
+          icon={<Flame size={13} />}
+          hint="Highlight everything that breaks if this goes down"
+        >
+          Blast radius
+        </ActionButton>
+        <ActionButton
+          onClick={() => startPath(node.id)}
+          icon={<RouteIcon size={13} />}
+          hint="Pick another node and see how they connect"
+        >
+          Trace path
+        </ActionButton>
         <ActionButton
           onClick={() => void openNode(node.id, { newTab: true })}
           icon={<SquareArrowOutUpRight size={13} />}

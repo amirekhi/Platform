@@ -22,6 +22,11 @@ export interface Scope {
   label: string;
 }
 
+/** An analysis laid over the canvas. Pure data, so a future proposal can carry the same shape. */
+export type AnalysisState =
+  | { kind: "blast"; rootId: Id; maxDepth: number; includeSoft: boolean }
+  | { kind: "path"; fromId: Id; toId: Id | null; route: number };
+
 export interface Tab {
   id: string;
   /** Exploration path; the last entry is what the canvas shows. */
@@ -49,6 +54,8 @@ export interface Tab {
   highlightIds: Id[];
   /** True when the highlight came from expanding (it then goes away on the next selection). */
   highlightTransient: boolean;
+  /** Blast radius or path trace currently drawn on the canvas. */
+  analysis: AnalysisState | null;
   selection: Selection;
   detailTab: DetailTab;
   /** Document to open in the Docs tab (set by search results). */
@@ -131,6 +138,13 @@ interface AppState {
   goUp: () => void;
 
   select: (selection: Selection, detailTab?: DetailTab) => void;
+  startBlast: (rootId: Id) => void;
+  setBlast: (p: { maxDepth?: number; includeSoft?: boolean }) => void;
+  /** Begin a path trace; the next node selected becomes the destination. */
+  startPath: (fromId: Id) => void;
+  setPathRoute: (n: number) => void;
+  swapPath: () => void;
+  clearAnalysis: () => void;
   setDetailTab: (tab: DetailTab) => void;
   setDocId: (id: Id | null) => void;
 
@@ -178,6 +192,7 @@ function makeTab(path: Scope[], partial: Partial<Tab> = {}): Tab {
     openIds: [],
     highlightIds: [],
     highlightTransient: false,
+    analysis: null,
     selection: null,
     detailTab: "overview",
     docId: null,
@@ -381,9 +396,68 @@ export const useApp = create<AppState>((set, get) => ({
     if (tab && tab.path.length > 1) get().goToPath(tab.path.length - 2);
   },
 
+  startBlast: (rootId) =>
+    set((s) => {
+      const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      const scope = tab?.path[tab.path.length - 1];
+      return patchActive(s, {
+        analysis: { kind: "blast", rootId, maxDepth: 0, includeSoft: true },
+        // An "around" view only reaches a few hops; open it wide enough to see the spread.
+        ...(scope?.mode === "around" ? { radius: 3 as const } : {}),
+      });
+    }),
+  setBlast: (p) =>
+    set((s) => {
+      const a = s.tabs.find((t) => t.id === s.activeTabId)?.analysis;
+      return a?.kind === "blast"
+        ? patchActive(s, { analysis: { ...a, ...p } })
+        : s;
+    }),
+  startPath: (fromId) =>
+    set((s) =>
+      patchActive(s, {
+        analysis: { kind: "path", fromId, toId: null, route: 0 },
+      }),
+    ),
+  setPathRoute: (route) =>
+    set((s) => {
+      const a = s.tabs.find((t) => t.id === s.activeTabId)?.analysis;
+      return a?.kind === "path"
+        ? patchActive(s, { analysis: { ...a, route } })
+        : s;
+    }),
+  swapPath: () =>
+    set((s) => {
+      const a = s.tabs.find((t) => t.id === s.activeTabId)?.analysis;
+      return a?.kind === "path" && a.toId
+        ? patchActive(s, {
+            analysis: { ...a, fromId: a.toId, toId: a.fromId, route: 0 },
+          })
+        : s;
+    }),
+  clearAnalysis: () => set((s) => patchActive(s, { analysis: null })),
+
   select: (selection, detailTab) =>
     set((s) => {
       const tab = s.tabs.find((t) => t.id === s.activeTabId);
+      // While a path trace is waiting for its destination, the next node picked is it.
+      const an = tab?.analysis;
+      if (
+        an?.kind === "path" &&
+        an.toId === null &&
+        selection?.type === "node" &&
+        selection.id !== an.fromId
+      ) {
+        return {
+          ...patchActive(s, {
+            analysis: { ...an, toId: selection.id, route: 0 },
+            selection,
+            detailTab: detailTab ?? "overview",
+            docId: null,
+          }),
+          detailOpen: true,
+        };
+      }
       // A highlight made by expanding fades once something else is selected; manual ones stay.
       const keep =
         !tab?.highlightTransient ||

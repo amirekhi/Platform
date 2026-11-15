@@ -45,6 +45,18 @@ export const TRIES: Try[] = [
     },
   },
   {
+    id: "blast",
+    title: "See what breaks if the catalog database goes down",
+    why: "Blast radius lights up everything that depends on it.",
+    run: async () => {
+      await app().focusNode("db-catalog");
+      app().startBlast("db-catalog");
+      say(
+        "Orange rings are affected, numbered by hops. Use Reach to narrow it. Esc closes.",
+      );
+    },
+  },
+  {
     id: "owner",
     title: "See who owns what",
     why: "Colour everything by owning team.",

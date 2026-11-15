@@ -47,6 +47,10 @@ import { HintBar, SelectionAnnouncer, useCanvasShortcuts } from "./HintBar";
 import { HoverCard } from "./HoverCard";
 import { Legend } from "./Legend";
 import { TryList } from "@/components/help/TryList";
+import { AnalysisPanel } from "@/components/analysis/AnalysisPanel";
+import { AnalysisContext } from "@/components/analysis/context";
+import { buildMarks } from "@/components/analysis/marks";
+import { useAnalysis } from "@/components/analysis/useAnalysis";
 import { LensLegend } from "./LensLegend";
 import { LensContext } from "./lensContext";
 import { buildLensState } from "@/domain/lenses";
@@ -125,42 +129,66 @@ export function Canvas({ tab }: { tab: Tab }) {
     [lensViewNodes, tab.lens, lensFocus],
   );
 
+  const { snap, result } = useAnalysis(tab.analysis);
+  const marks = useMemo(
+    () =>
+      snap && tab.analysis && lensViewNodes
+        ? buildMarks(
+            snap,
+            tab.analysis,
+            result,
+            lensViewNodes.map((n) => n.id),
+          )
+        : null,
+    [snap, tab.analysis, result, lensViewNodes],
+  );
+
   return (
     <LensContext.Provider value={lensState}>
-      <ReactFlowProvider>
-        <div className="flex h-full w-full flex-col">
-          <div className="relative min-h-0 w-full flex-1">
-            <div
-              className={`absolute inset-0 ${anim} ${lead ? "motion-lead" : ""}`}
-            >
-              {loaded ? (
-                <Flow
-                  key={loaded.flowKey}
-                  loaded={loaded}
-                  detailsOpen={tab.detailsOpen}
-                  rootId={scope.rootId}
+      <AnalysisContext.Provider value={marks}>
+        <ReactFlowProvider>
+          <div className="flex h-full w-full flex-col">
+            <div className="relative min-h-0 w-full flex-1">
+              <div
+                className={`absolute inset-0 ${anim} ${lead ? "motion-lead" : ""}`}
+              >
+                {loaded ? (
+                  <Flow
+                    key={loaded.flowKey}
+                    loaded={loaded}
+                    detailsOpen={tab.detailsOpen}
+                    rootId={scope.rootId}
+                  />
+                ) : (
+                  <Centered>Loading…</Centered>
+                )}
+              </div>
+              <CanvasBar tab={tab} view={loaded?.view} />
+              <FocusCard
+                rootId={scope.rootId}
+                mode={scope.mode}
+                view={loaded?.view}
+              />
+              <LensLegend state={lensState} />
+              {tab.analysis ? (
+                <AnalysisPanel
+                  analysis={tab.analysis}
+                  snap={snap}
+                  result={result}
                 />
               ) : (
-                <Centered>Loading…</Centered>
+                <Legend />
+              )}
+              {loaded && loaded.view.nodes.length === 0 && (
+                <EmptyCanvas inside={scope.mode === "inside"} />
               )}
             </div>
-            <CanvasBar tab={tab} view={loaded?.view} />
-            <FocusCard
-              rootId={scope.rootId}
-              mode={scope.mode}
-              view={loaded?.view}
-            />
-            <LensLegend state={lensState} />
-            <Legend />
-            {loaded && loaded.view.nodes.length === 0 && (
-              <EmptyCanvas inside={scope.mode === "inside"} />
-            )}
+            <SelectionAnnouncer tab={tab} view={loaded?.view} />
+            <HintBar tab={tab} view={loaded?.view} />
+            <HoverCard />
           </div>
-          <SelectionAnnouncer tab={tab} view={loaded?.view} />
-          <HintBar tab={tab} view={loaded?.view} />
-          <HoverCard />
-        </div>
-      </ReactFlowProvider>
+        </ReactFlowProvider>
+      </AnalysisContext.Provider>
     </LensContext.Provider>
   );
 }
