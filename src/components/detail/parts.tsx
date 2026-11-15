@@ -133,6 +133,10 @@ export function DocsPane({ target }: { target: DocTarget }) {
         {target.type === "relation"
           ? "No documents are owned by this relationship yet."
           : "No documents are attached to this node yet."}
+        <span className="mt-1 block text-[12px]">
+          Missing docs show up under the Docs lens, so owners can find and fill
+          the gaps.
+        </span>
       </Empty>
     );
   }
@@ -229,7 +233,7 @@ export function DiagramsPane({ target }: { target: DocTarget }) {
     getDataSource().getDiagramsFor(target),
   );
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
-  if (!data.length) return <Empty>No diagrams yet.</Empty>;
+  if (!data.length) return <Empty>No diagrams yet. Diagrams you attach to this node will appear here.</Empty>;
   return (
     <div className="space-y-5">
       {data.map((d) => (

@@ -375,6 +375,8 @@ export class FixtureDataSource implements DataSource {
           props: {},
           docCount: 0,
           derived: true,
+          kinds: [...types],
+          mixed: types.size > 1,
           viaIds: via.map((v) => v.id),
         });
       }

@@ -11,6 +11,7 @@ import { SearchPalette } from "../search/SearchPalette";
 import { Explorer } from "./Explorer";
 import { useExitable } from "@/lib/useExitable";
 import { PerfMenu } from "./PerfMenu";
+import { HelpMenu } from "@/components/help/HelpMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { TabBar } from "./TabBar";
 
@@ -58,6 +59,7 @@ export function AppShell() {
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
+            data-tour="search"
             className="flex w-56 items-center gap-2 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-[12.5px] text-muted hover:border-accent"
           >
             <Search size={13} />
@@ -67,6 +69,7 @@ export function AppShell() {
             </kbd>
           </button>
           <ThemeToggle />
+          <HelpMenu />
           <PerfMenu />
           <button
             type="button"

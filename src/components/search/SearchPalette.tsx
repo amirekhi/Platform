@@ -76,12 +76,10 @@ function Palette({ onClose }: { onClose: () => void }) {
       await useApp.getState().openNode(hit.id, { newTab });
     } else if (hit.type === "relation") {
       if (newTab)
-        await useApp
-          .getState()
-          .openNode(hit.anchorNodeId, {
-            newTab: true,
-            selection: { type: "relation", id: hit.id },
-          });
+        await useApp.getState().openNode(hit.anchorNodeId, {
+          newTab: true,
+          selection: { type: "relation", id: hit.id },
+        });
       else await navigateTo({ type: "relation", id: hit.id });
     } else {
       const doc = await getDataSource().getDoc(hit.id);
@@ -210,6 +208,21 @@ function Palette({ onClose }: { onClose: () => void }) {
           {query.trim() && data && hits.length === 0 && (
             <li className="px-3 py-8 text-center text-[13px] text-muted">
               No results for “{query}”.
+              <div className="mt-1 text-[12px]">
+                Check the spelling, use fewer words, or set Any kind.
+              </div>
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                {SUGGESTIONS.slice(0, 4).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setQuery(s)}
+                    className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink hover:border-accent"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </li>
           )}
           {hits.map((h, i) => (

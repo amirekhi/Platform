@@ -28,6 +28,7 @@ import { SearchPalette } from "../search/SearchPalette";
 import { Explorer } from "./Explorer";
 import { useExitable } from "@/lib/useExitable";
 import { PerfMenu } from "./PerfMenu";
+import { HelpMenu } from "@/components/help/HelpMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { TabBar } from "./TabBar";
 
@@ -83,6 +84,7 @@ export function CompactShell({
             type="button"
             onClick={() => setSearchOpen(true)}
             aria-label="Search"
+            data-tour="search"
             className={`flex items-center gap-2 rounded-lg border border-line bg-bg text-[12.5px] text-muted ${
               device === "tablet" ? "w-52 px-2.5 py-1.5" : "p-2"
             }`}
@@ -93,6 +95,7 @@ export function CompactShell({
             )}
           </button>
           <ThemeToggle />
+          <HelpMenu />
           <PerfMenu />
         </div>
         <div className="flex px-2">

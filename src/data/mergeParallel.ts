@@ -24,7 +24,8 @@ export function mergeParallel(relations: RelationView[]): RelationView[] {
       out.push({ ...g[0], count: ids.length });
       continue;
     }
-    const types = new Set(g.map((r) => r.type));
+    const kinds = [...new Set(g.flatMap((r) => r.kinds ?? [r.type]))];
+    const types = new Set(kinds);
     out.push({
       ...g[0],
       id: `bundle|${g[0].sourceId}|${g[0].targetId}|${ids.join(",")}`,
@@ -36,6 +37,7 @@ export function mergeParallel(relations: RelationView[]): RelationView[] {
       derived: g.every((r) => r.derived),
       viaIds: ids,
       count: ids.length,
+      kinds,
       mixed: types.size > 1,
       memberIds: ids,
     });

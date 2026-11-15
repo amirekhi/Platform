@@ -11,6 +11,7 @@ import {
 import { ArrowUpFromLine, FileText } from "lucide-react";
 import { memo, useContext } from "react";
 import { LensContext } from "./lensContext";
+import { lineStyle } from "@/domain/relationStyle";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { RelationView } from "@/domain/types";
 import { useApp, useLite } from "@/state/store";
@@ -37,7 +38,8 @@ function RelationEdgeImpl({
   markerEnd,
 }: EdgeProps<RelationFlowEdge>) {
   const rel = data!.rel;
-  const def = RELATION_TYPES[rel.type];
+  const ls = lineStyle(rel);
+  const def = { color: ls.color, label: ls.label, async: ls.async };
   const selected = useApp((s) => {
     const t = s.tabs.find((x) => x.id === s.activeTabId);
     return (
@@ -127,6 +129,27 @@ function RelationEdgeImpl({
           opacity: selected || lit ? 1 : faded ? 0.12 : 0.8,
         }}
       />
+      {/* Mixed line: each kind takes a turn along the stone base, like a barber pole. */}
+      {ls.mixed && !derived && (
+        <>
+          {ls.kinds.map((k, i) => (
+            <path
+              key={k}
+              d={path}
+              fill="none"
+              stroke={RELATION_TYPES[k].color}
+              strokeWidth={Math.max(1.6, widthFor * 0.6)}
+              strokeDasharray={`9 ${9 * (ls.kinds.length - 1)}`}
+              strokeDashoffset={-9 * i}
+              pointerEvents="none"
+              style={{
+                opacity: faded ? 0.12 : 0.95,
+                transition: "opacity 250ms",
+              }}
+            />
+          ))}
+        </>
+      )}
       {(lite ? labelOn : true) && (
         <EdgeLabelRenderer>
           <button
@@ -155,9 +178,12 @@ function RelationEdgeImpl({
               color: selected || lit ? def.color : "var(--muted)",
             }}
             title={
-              derived
+              (derived
                 ? `${rel.name ?? def.label} (lifted from deeper levels)`
-                : (rel.name ?? def.label)
+                : (rel.name ?? def.label)) +
+              (ls.mixed
+                ? `: ${ls.kinds.map((k) => RELATION_TYPES[k].label).join(", ")}`
+                : "")
             }
           >
             {count > 1 && (
@@ -170,6 +196,17 @@ function RelationEdgeImpl({
               </span>
             )}
             {derived && count <= 1 && <ArrowUpFromLine size={10} aria-hidden />}
+            {ls.mixed && (
+              <span className="flex items-center -space-x-0.5" aria-hidden>
+                {ls.kinds.slice(0, 4).map((k) => (
+                  <span
+                    key={k}
+                    className="h-2 w-2 rounded-full ring-1 ring-[var(--panel)]"
+                    style={{ background: RELATION_TYPES[k].color }}
+                  />
+                ))}
+              </span>
+            )}
             <span className="max-w-[150px] truncate">
               {rel.name ?? def.label}
             </span>

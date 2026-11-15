@@ -1,4 +1,5 @@
 "use client";
+import { TryList } from "@/components/help/TryList";
 
 import {
   ArrowRight,
@@ -57,9 +58,17 @@ export function DetailPanel({
         <X size={15} />
       </button>
       {!sel && (
-        <div className="flex h-full items-center justify-center px-8 text-center text-[13px] text-muted">
-          Select a node or a relationship on the canvas to see its documents,
-          diagrams and monitoring.
+        <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+          <p className="text-[13px] text-muted">
+            Select a node or a relationship on the canvas to see its documents,
+            diagrams and monitoring.
+          </p>
+          <div className="w-full max-w-[320px] text-left">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Try this
+            </div>
+            <TryList limit={3} />
+          </div>
         </div>
       )}
       {sel?.type === "node" && (

@@ -2,6 +2,8 @@
 
 import {
   ArrowUp,
+  Redo2,
+  Undo2,
   AlertTriangle,
   ArrowUpFromLine,
   ScanEye,
@@ -19,6 +21,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { redo, undo, useHistoryState } from "@/state/history";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { GraphView, RelationType } from "@/domain/types";
 import { useDevice } from "@/lib/useDevice";
@@ -32,6 +35,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
   const setContainment = useApp((s) => s.setShowContainment);
   const setLifted = useApp((s) => s.setShowLifted);
   const setLens = useApp((s) => s.setLens);
+  const hist = useHistoryState();
   const setExternal = useApp((s) => s.setShowExternal);
   const setRadius = useApp((s) => s.setRadius);
   const setDetailsFor = useApp((s) => s.setDetailsFor);
@@ -91,6 +95,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
       {/* Level path */}
       <nav
         aria-label="Exploration path"
+        data-tour="path"
         className={`pointer-events-auto flex max-w-full items-center gap-0.5 rounded-xl border border-line bg-panel/95 p-1 shadow-[var(--shadow)] ${
           phone ? "flex-nowrap overflow-x-auto" : "flex-wrap"
         }`}
@@ -143,6 +148,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
             onClick={() => setControlsOpen((o) => !o)}
             aria-expanded={controlsOpen}
             aria-label="View controls"
+            data-tour="lens"
             className={`ml-1 flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-medium ${
               controlsOpen ? "bg-accent text-white" : "bg-panel2 text-muted"
             }`}
@@ -150,6 +156,31 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
             <SlidersHorizontal size={13} /> View
           </button>
         )}
+        <span className="mx-0.5 h-4 w-px shrink-0 bg-line" aria-hidden />
+        <button
+          type="button"
+          onClick={undo}
+          disabled={!hist.canUndo}
+          aria-label="Undo"
+          title={
+            hist.canUndo ? `Undo ${hist.undoLabel} (Ctrl+Z)` : "Nothing to undo"
+          }
+          className="rounded-lg p-1.5 text-muted hover:bg-panel2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <Undo2 size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={redo}
+          disabled={!hist.canRedo}
+          aria-label="Redo"
+          title={
+            hist.canRedo ? `Redo ${hist.redoLabel} (Ctrl+Y)` : "Nothing to redo"
+          }
+          className="rounded-lg p-1.5 text-muted hover:bg-panel2 hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <Redo2 size={14} />
+        </button>
       </nav>
 
       {/* View controls */}
@@ -302,6 +333,7 @@ export function CanvasBar({ tab, view }: { tab: Tab; view?: GraphView }) {
             type="button"
             onClick={() => setLensOpen((o) => !o)}
             aria-expanded={lensOpen}
+            data-tour="lens"
             title="Lenses: choose what the colours mean, for your role"
             className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium ${
               tab.lens !== "kind"

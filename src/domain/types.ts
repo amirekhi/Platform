@@ -221,6 +221,8 @@ export interface RelationView extends Relation {
   viaIds?: Id[];
   /** How many underlying relations this line stands for (1 when it is a single relation). */
   count?: number;
+  /** The distinct relation kinds this line stands for. */
+  kinds?: RelationType[];
   /** Merged line whose relations are of different kinds. */
   mixed?: boolean;
   /** Relation ids folded into a merged line. */

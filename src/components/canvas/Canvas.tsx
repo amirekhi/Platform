@@ -19,7 +19,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDevice } from "@/lib/useDevice";
 import { useLite, prefersReducedMotion } from "@/state/store";
 import { getDataSource } from "@/data";
-import { NODE_KINDS, RELATION_TYPES } from "@/domain/registry";
+import { NODE_KINDS } from "@/domain/registry";
+import { lineStyle } from "@/domain/relationStyle";
 import type { GraphView, Id } from "@/domain/types";
 import { useAsync } from "@/lib/useAsync";
 import { currentScope, type Tab, useApp } from "@/state/store";
@@ -39,9 +40,13 @@ import {
 } from "./GraphNodeCard";
 import { useTheme } from "@/lib/theme";
 import { FocusCard } from "./FocusCard";
-import { HintBar, useCanvasShortcuts } from "./HintBar";
+import { useHistoryShortcuts } from "@/state/history";
+import { describeNode } from "@/lib/describe";
+import { useKeyboardNav } from "./useKeyboardNav";
+import { HintBar, SelectionAnnouncer, useCanvasShortcuts } from "./HintBar";
 import { HoverCard } from "./HoverCard";
 import { Legend } from "./Legend";
+import { TryList } from "@/components/help/TryList";
 import { LensLegend } from "./LensLegend";
 import { LensContext } from "./lensContext";
 import { buildLensState } from "@/domain/lenses";
@@ -112,6 +117,7 @@ export function Canvas({ tab }: { tab: Tab }) {
       : "";
 
   useCanvasShortcuts(tab, loaded?.view);
+  useHistoryShortcuts();
   const lensViewNodes = loaded?.view.nodes;
   const lensFocus = tab.lensFocus;
   const lensState = useMemo(
@@ -147,13 +153,10 @@ export function Canvas({ tab }: { tab: Tab }) {
             <LensLegend state={lensState} />
             <Legend />
             {loaded && loaded.view.nodes.length === 0 && (
-              <Centered>
-                {scope.mode === "inside"
-                  ? "Nothing inside this node."
-                  : "Nothing to show."}
-              </Centered>
+              <EmptyCanvas inside={scope.mode === "inside"} />
             )}
           </div>
+          <SelectionAnnouncer tab={tab} view={loaded?.view} />
           <HintBar tab={tab} view={loaded?.view} />
           <HoverCard />
         </div>
@@ -193,6 +196,7 @@ function build(
     nodes.push({
       id: v.id,
       type: "graph",
+      ariaLabel: describeNode(v),
       position: pos[v.id] ?? { x: 0, y: 0 },
       parentId:
         v.containerId && byId.has(v.containerId) ? v.containerId : undefined,
@@ -283,7 +287,7 @@ function build(
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: RELATION_TYPES[r.type].color,
+        color: lineStyle(r).color,
         // Fixed pixel size (not scaled by the line), so thick lines keep a sensible arrowhead.
         markerUnits: "userSpaceOnUse",
         width: arrowSize(
@@ -308,6 +312,7 @@ function Flow({
   rootId: Id | null;
 }) {
   const { view } = loaded;
+  useKeyboardNav(view, rootId);
   const select = useApp((s) => s.select);
   const focusNode = useApp((s) => s.focusNode);
   const { fitView, zoomIn, zoomOut } = useReactFlow();
@@ -645,6 +650,34 @@ function Flow({
         )}
       </ReactFlow>
     </HighlightContext.Provider>
+  );
+}
+
+function EmptyCanvas({ inside }: { inside: boolean }) {
+  const goUp = useApp((s) => s.goUp);
+  return (
+    <div className="absolute inset-0 z-0 flex items-center justify-center px-6">
+      <div className="pointer-events-auto w-full max-w-[340px] text-center">
+        <div className="text-[14px] font-semibold text-ink">
+          {inside ? "Nothing is inside this node" : "Nothing to show here"}
+        </div>
+        <p className="mt-1 text-[12.5px] text-muted">
+          {inside
+            ? "It is a leaf, so there is nothing to open. Go back up, or try one of these."
+            : "Your filters may be hiding everything. Go back, or try one of these."}
+        </p>
+        <button
+          type="button"
+          onClick={goUp}
+          className="mx-auto mt-3 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] font-medium text-white"
+        >
+          Go back up
+        </button>
+        <div className="mt-4 text-left">
+          <TryList limit={3} compact />
+        </div>
+      </div>
+    </div>
   );
 }
 

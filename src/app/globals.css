@@ -569,3 +569,6 @@ html[data-lite="true"] .health-pulse {
     animation: none;
   }
 }
+
+/* Keyboard focus on a node: a clear ring around the whole card. */
+.react-flow__node:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 14px; }
