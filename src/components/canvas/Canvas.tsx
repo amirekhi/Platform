@@ -254,8 +254,9 @@ function build(
   for (const v of kids.get(null) ?? []) emit(v, 0);
 
   // Detail circles are children of their square so they travel with it when dragged.
+  // Outside nodes get them too: every node can show its details.
   for (const v of view.nodes) {
-    if (!open.has(v.id) || v.role === "ghost" || v.open) continue;
+    if (!open.has(v.id) || v.open) continue;
     const cats = detailCategories(v);
     const slots = detailSlots(cats.length);
     cats.forEach((cat, i) => {
@@ -363,7 +364,7 @@ function Flow({
   const openKey = useMemo(
     () =>
       view.nodes
-        .filter((n) => detailsOpen.includes(n.id) && n.role !== "ghost")
+        .filter((n) => detailsOpen.includes(n.id))
         .map((n) => n.id)
         .sort()
         .join(","),

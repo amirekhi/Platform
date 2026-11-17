@@ -65,7 +65,7 @@ export function Legend() {
               </li>
               <li className="flex items-center gap-1.5">
                 <span className="h-3.5 w-3.5 border-2 border-dashed border-line opacity-60" />
-                Outside this level
+                Outside this level, or reached by expanding
               </li>
               <li className="flex items-center gap-1.5">
                 <span className="w-5 border-t-2 border-dotted border-muted" />

@@ -493,8 +493,8 @@ export function buildLensState(
   const map = new Map<Id, LensCategory | null>();
   const counts = new Map<string, { cat: LensCategory; count: number }>();
   if (def.classify) {
+    // Outside nodes are classified like any other node.
     for (const n of nodes) {
-      if (n.role === "ghost") continue;
       const c = def.classify(n, data);
       map.set(n.id, c);
       if (c) {

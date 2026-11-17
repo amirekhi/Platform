@@ -10,7 +10,7 @@ import { canvasKeyTarget } from "./keyGate";
 function selectedNode(tab: Tab, view?: GraphView): NodeView | null {
   const sel = tab.selection;
   if (sel?.type !== "node" || !view) return null;
-  return view.nodes.find((n) => n.id === sel.id && n.role !== "ghost") ?? null;
+  return view.nodes.find((n) => n.id === sel.id) ?? null;
 }
 
 /** Keyboard shortcuts for whatever is selected. The hint bar below teaches them. */

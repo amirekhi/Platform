@@ -253,10 +253,14 @@ export class FixtureDataSource implements DataSource {
     const showContainment = q.showContainment ?? true;
     const showLifted = q.showLifted ?? true;
     const rootId = q.rootId;
+    const rootChain = rootId ? this.chainOf(rootId) : [];
+    const expandedAll = new Set<Id>(q.expandedIds ?? []);
 
     /* 1. Decide which nodes are "members" of this view. */
     let members: Id[] = [];
     let truncated = 0;
+    /** Nodes in an "around" view only because an expanded node pulled them in. */
+    const reached = new Set<Id>();
     if (q.mode === "inside") {
       members = this.contentsOf(rootId).map((n) => n.id);
     } else if (rootId && this.nodes.has(rootId)) {
@@ -273,11 +277,22 @@ export class FixtureDataSource implements DataSource {
           }
         }
       }
-      // Stacked expansions: each expanded node pulls in its own neighbours.
-      for (const ex of q.expandedIds ?? []) {
-        if (!dist.has(ex)) continue;
-        for (const nb of this.neighboursOf(ex, hidden, showLifted))
-          if (!dist.has(nb)) dist.set(nb, (dist.get(ex) ?? 0) + 1);
+      // Stacked expansions: each expanded node pulls in its own neighbours. Repeating until
+      // nothing new appears means a node reached by one expansion can itself be expanded,
+      // whatever order the expansions were made in.
+      const expandedList = q.expandedIds ?? [];
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const ex of expandedList) {
+          if (!dist.has(ex)) continue;
+          for (const nb of this.neighboursOf(ex, hidden, showLifted))
+            if (!dist.has(nb)) {
+              dist.set(nb, (dist.get(ex) ?? 0) + 1);
+              reached.add(nb);
+              grew = true;
+            }
+        }
       }
       members = [...dist.keys()];
       const cap = MAX_AROUND + 12 * (q.expandedIds?.length ?? 0);
@@ -314,8 +329,7 @@ export class FixtureDataSource implements DataSource {
       rootId &&
       this.nodes.get(rootId)?.kind !== "team"
     ) {
-      const rootChain = this.chainOf(rootId);
-      const maxGhosts = MAX_GHOSTS + 8 * expanded.size;
+      const maxGhosts = MAX_GHOSTS + 8 * (q.expandedIds?.length ?? 0);
       for (const r of RELATIONS) {
         if (hidden.has(r.type)) continue;
         const ls = this.liftTo(r.sourceId, memberSet);
@@ -340,7 +354,31 @@ export class FixtureDataSource implements DataSource {
         )
           ghostSet.add(ghost);
       }
+
+      // An expanded outside node pulls in its own neighbours, so the graph can be
+      // followed outward from anywhere.
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const g of [...ghostSet]) {
+          if (!expandedAll.has(g)) continue;
+          for (const nb of this.neighboursOf(g, hidden, true)) {
+            if (ghostSet.size >= maxGhosts) break;
+            if (rootChain.includes(nb)) continue;
+            if (this.liftTo(nb, memberSet) !== undefined) continue;
+            if (this.liftTo(nb, ghostSet) !== undefined) continue;
+            ghostSet.add(nb);
+            grew = true;
+          }
+        }
+      }
     }
+
+    // Outside nodes can be opened in place too; their contents become members.
+    for (const g of ghostSet) have.add(g);
+    for (const g of [...ghostSet]) if (openSet.has(g)) addContents(g, 1);
+    for (const id of members) memberSet.add(id);
+
     const visible = new Set<Id>([...memberSet, ...ghostSet]);
 
     /* 3. Direct relations between visible nodes. */
@@ -351,7 +389,13 @@ export class FixtureDataSource implements DataSource {
       for (const r of this.relsBySource.get(id) ?? []) {
         if (seen.has(r.id) || hidden.has(r.type) || !visible.has(r.targetId))
           continue;
-        if (ghostSet.has(r.sourceId) && ghostSet.has(r.targetId)) continue;
+        if (
+          ghostSet.has(r.sourceId) &&
+          ghostSet.has(r.targetId) &&
+          !expandedAll.has(r.sourceId) &&
+          !expandedAll.has(r.targetId)
+        )
+          continue;
         seen.add(r.id);
         directPairs.add(`${r.sourceId}>${r.targetId}`);
         relations.push({
@@ -369,7 +413,13 @@ export class FixtureDataSource implements DataSource {
         const ls = this.liftTo(r.sourceId, visible);
         const lt = this.liftTo(r.targetId, visible);
         if (!ls || !lt || ls === lt) continue;
-        if (ghostSet.has(ls) && ghostSet.has(lt)) continue;
+        if (
+          ghostSet.has(ls) &&
+          ghostSet.has(lt) &&
+          !expandedAll.has(ls) &&
+          !expandedAll.has(lt)
+        )
+          continue;
         if (directPairs.has(`${ls}>${lt}`)) continue;
         const key = `${ls}>${lt}`;
         const entry = lifted.get(key) ?? { s: ls, t: lt, via: [] };
@@ -420,16 +470,21 @@ export class FixtureDataSource implements DataSource {
     const ordered = [...members, ...ghostSet];
     const nodes: NodeView[] = ordered.map((id) => {
       const n = this.nodes.get(id)!;
+      const isGhost = ghostSet.has(id);
       let externalCount = 0;
+      // Outside nodes count their connections through what they contain too,
+      // so they can be expanded just like any other node.
       for (const nb of this.neighboursOf(
         id,
         hidden,
-        showLifted && q.mode === "around",
-      ))
+        isGhost || (showLifted && q.mode === "around"),
+      )) {
+        if (isGhost && rootChain.includes(nb)) continue;
         if (!covered(nb)) externalCount++;
+      }
       return {
         ...n,
-        role: ghostSet.has(id)
+        role: isGhost
           ? "ghost"
           : q.mode === "around" && id === rootId
             ? "root"
@@ -437,12 +492,13 @@ export class FixtureDataSource implements DataSource {
         health: this.healthOf(n),
         childCount: this.contentsOf(id).length,
         alertCount: this.alertsOf(n.id),
-        externalCount: ghostSet.has(id) ? 0 : externalCount,
+        externalCount,
+        reached: reached.has(id),
         details: this.detailsOf(n),
         containerId: containerOf.get(id) ?? null,
         open:
           openSet.has(id) &&
-          memberSet.has(id) &&
+          (memberSet.has(id) || ghostSet.has(id)) &&
           this.contentsOf(id).length > 0,
       };
     });

@@ -85,7 +85,6 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   const lens = useContext(LensContext);
   const lensCat = lens ? (lens.cat.get(v.id) ?? null) : null;
   const lensDef = lens ? LENS_BY_ID[lens.id] : null;
-  const isGhost = v.role === "ghost";
   // Blast radius / path trace: affected shapes get a ring and a number; the rest step back.
   const an = useContext(AnalysisContext);
   const anMark = an?.node.get(v.id) ?? null;
@@ -109,13 +108,10 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
           : String(anMark.n ?? "")
     : "";
   // With a recolouring lens the shape wears the lens colour; nodes outside the lens look neutral.
-  const tint =
-    lensDef?.tints && !isGhost ? (lensCat?.color ?? "var(--muted)") : undefined;
+  const tint = lensDef?.tints ? (lensCat?.color ?? "var(--muted)") : undefined;
   const receded = lit !== null && !lit.has(v.id);
   // A dimming lens (or a picked legend row) lets everything else step back, like heat vision.
-  const lensDim = Boolean(
-    lens?.hot && !lens.hot.has(v.id) && !selected && !isGhost,
-  );
+  const lensDim = Boolean(lens?.hot && !lens.hot.has(v.id) && !selected);
   const highlighted = useApp(
     (s) =>
       s.tabs.find((x) => x.id === s.activeTabId)?.highlightIds.includes(v.id) ??
@@ -136,17 +132,22 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   });
 
   const isRoot = v.role === "root";
+  // An outside node keeps its dashed outline so you can tell where it came from,
+  // but it is a full node: it can be expanded, opened, entered and analysed.
   const ghost = v.role === "ghost";
-  const dim =
-    ghost || v.lifecycle === "retired" || v.lifecycle === "deprecated";
+  // In a focus view, a node that is only there because another node was expanded.
+  const reached = v.reached;
+  // Both kinds of outside node are drawn dashed and a little dimmer than the direct ones.
+  const faint = ghost || reached;
+  const dim = v.lifecycle === "retired" || v.lifecycle === "deprecated";
   const showHealth = v.health !== "unknown";
-  const canGoInside = v.childCount > 0 && !ghost;
-  const canExpand = !ghost && (v.externalCount > 0 || expanded);
+  const canGoInside = v.childCount > 0;
+  const canExpand = v.externalCount > 0 || expanded;
 
   // Overview draws no text, except for what you are working with or pointing at.
   const showLabel =
     level > 0 || selected || highlighted || isRoot || expanded || hover;
-  const canOpen = canGoInside && v.role !== "ghost";
+  const canOpen = canGoInside;
   const glow = selected ? kind.color : isRoot ? "var(--accent)" : null;
 
   return (
@@ -157,28 +158,24 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
         offset={detailsOpen ? RING + 8 : 8}
       >
         <div className="pop-in flex items-center gap-0.5 rounded-lg border border-line bg-panel p-0.5 shadow-[var(--shadow)]">
-          {!ghost && (
-            <ToolButton
-              label={detailsOpen ? "Hide details" : "Show details (circles)"}
-              active={detailsOpen}
-              onClick={() => toggleDetails(v.id)}
-            >
-              <Orbit size={14} />
-            </ToolButton>
-          )}
-          {!ghost && (
-            <ToolButton
-              label={
-                highlighted
-                  ? "Stop highlighting its relations"
-                  : "Highlight its relations"
-              }
-              active={highlighted}
-              onClick={() => toggleHighlight(v.id)}
-            >
-              <Highlighter size={14} />
-            </ToolButton>
-          )}
+          <ToolButton
+            label={detailsOpen ? "Hide details" : "Show details (circles)"}
+            active={detailsOpen}
+            onClick={() => toggleDetails(v.id)}
+          >
+            <Orbit size={14} />
+          </ToolButton>
+          <ToolButton
+            label={
+              highlighted
+                ? "Stop highlighting its relations"
+                : "Highlight its relations"
+            }
+            active={highlighted}
+            onClick={() => toggleHighlight(v.id)}
+          >
+            <Highlighter size={14} />
+          </ToolButton>
           {canExpand && (
             <ToolButton
               label={
@@ -221,23 +218,19 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               <Crosshair size={14} />
             </ToolButton>
           )}
-          {!ghost && (
-            <ToolButton
-              label="Blast radius: what breaks if this goes down (B)"
-              active={blastOn}
-              onClick={() => startBlast(v.id)}
-            >
-              <Flame size={14} />
-            </ToolButton>
-          )}
-          {!ghost && (
-            <ToolButton
-              label="Trace a path from here (T)"
-              onClick={() => startPath(v.id)}
-            >
-              <RouteIcon size={14} />
-            </ToolButton>
-          )}
+          <ToolButton
+            label="Blast radius: what breaks if this goes down (B)"
+            active={blastOn}
+            onClick={() => startBlast(v.id)}
+          >
+            <Flame size={14} />
+          </ToolButton>
+          <ToolButton
+            label="Trace a path from here (T)"
+            onClick={() => startPath(v.id)}
+          >
+            <RouteIcon size={14} />
+          </ToolButton>
           <ToolButton
             label="Open in new tab"
             onClick={() => void openNode(v.id, { newTab: true })}
@@ -258,6 +251,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
           }`}
           style={{
             borderColor: selected ? kind.color : `${kind.color}88`,
+            borderStyle: faint ? "dashed" : "solid",
             background: `color-mix(in srgb, ${kind.color} 7%, var(--panel))`,
             boxShadow: glow
               ? `0 0 0 2px ${glow}66, 0 0 14px ${glow}55`
@@ -266,7 +260,15 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               ? `3px ${anMark?.role === "soft" ? "dashed" : "solid"} ${anColor}`
               : undefined,
             outlineOffset: anColor ? 3 : undefined,
-            opacity: leaving ? 0 : lensDim || anDim ? 0.16 : receded ? 0.45 : 1,
+            opacity: leaving
+              ? 0
+              : lensDim || anDim
+                ? 0.16
+                : receded
+                  ? 0.45
+                  : faint
+                    ? 0.85
+                    : 1,
           }}
         >
           <Handle id="l" type="target" position={Position.Left} />
@@ -348,10 +350,10 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 : receded
                   ? 0.3
                   : dim
-                    ? ghost
-                      ? 0.6
-                      : 0.7
-                    : 1,
+                    ? 0.7
+                    : faint
+                      ? 0.8
+                      : 1,
           }}
           className={`group/node flex flex-col items-center transition-opacity duration-300 ${touch ? "relative" : ""} ${data.fresh ? "node-pop" : ""}`}
           data-node-id={v.id}
@@ -389,7 +391,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
             <KindShape
               kind={v.kind}
               size={SHAPE}
-              dashed={ghost || v.lifecycle === "proposed"}
+              dashed={faint || v.lifecycle === "proposed"}
               accent={isRoot}
               tint={tint}
             />
@@ -526,8 +528,9 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                   {v.lifecycle !== "active" && (
                     <Pill>{LIFECYCLE_LABEL[v.lifecycle].toLowerCase()}</Pill>
                   )}
+                  {reached && <Pill>expanded</Pill>}
                 </div>
-                {(lite ? level === 2 : true) && !ghost && (
+                {(lite ? level === 2 : true) && (
                   <div
                     className="mt-0.5 space-y-px text-[10px] leading-tight text-muted"
                     style={{
@@ -551,7 +554,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               </>
             )}
           </div>
-          {touch && selected && !ghost && (
+          {touch && selected && (
             <div
               className="touch-row pop-in nopan absolute left-1/2 top-full z-20 flex w-[132px] flex-wrap items-center justify-center gap-1 rounded-xl border border-line bg-panel p-1 shadow-[var(--shadow)]"
               // Open detail circles sit above and below the node; the row waits beyond them.

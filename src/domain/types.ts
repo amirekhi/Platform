@@ -225,6 +225,12 @@ export interface NodeView extends GraphNode {
   alertCount: number;
   /** Connections to nodes that are not represented in this view. */
   externalCount: number;
+  /**
+   * True when the node is in a focus ("around") view only because another node was
+   * expanded, not because it is within the chosen reach. Drawn dashed and a little dimmer,
+   * like the outside nodes of an "inside" view.
+   */
+  reached: boolean;
   details: NodeDetails;
   /** When opened in place, the node whose box this node sits inside. */
   containerId: Id | null;

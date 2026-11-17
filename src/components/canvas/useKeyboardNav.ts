@@ -16,7 +16,7 @@ const DIRS: Record<string, [number, number]> = {
 /**
  * Arrow keys step to the neighbouring node in that direction, preferring nodes that are
  * connected. Tabbing onto a node selects it, so keyboard and screen-reader users follow the
- * same path as the mouse.
+ * same path as the mouse. Outside nodes are part of the walk like any other.
  */
 export function useKeyboardNav(view: GraphView, rootId: Id | null) {
   const { getInternalNode, getViewport, setCenter, getZoom } = useReactFlow();
@@ -60,7 +60,7 @@ export function useKeyboardNav(view: GraphView, rootId: Id | null) {
       const dir = DIRS[e.key];
       if (!dir || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
       if (!canvasKeyTarget(e)) return;
-      const members = view.nodes.filter((n) => n.role !== "ghost");
+      const members = view.nodes;
       if (members.length === 0) return;
       // Stop the built-in "arrow moves the node" behaviour.
       e.preventDefault();
