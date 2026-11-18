@@ -9,7 +9,7 @@ import {
   type EdgeProps,
 } from "@xyflow/react";
 import { ArrowUpFromLine, FileText } from "lucide-react";
-import { memo, useContext } from "react";
+import { memo, useContext, useEffect, useRef } from "react";
 import { AnalysisContext } from "@/components/analysis/context";
 import { ANALYSIS_COLOR } from "@/components/analysis/marks";
 import { LensContext } from "./lensContext";
@@ -17,7 +17,7 @@ import { HighlightContext } from "./GraphNodeCard";
 import { lineStyle } from "@/domain/relationStyle";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { RelationView } from "@/domain/types";
-import { useApp, useLite } from "@/state/store";
+import { prefersReducedMotion, useApp, useLite } from "@/state/store";
 import { useLevel } from "./lod";
 import { lineWidth } from "./lineWidth";
 
@@ -55,25 +55,38 @@ function RelationEdgeImpl({
   const level = useLevel();
   const lite = useLite();
   // A highlight keeps its lines bright and lets everything else recede. After an expansion
-  // there are two strengths: lines to the nodes it just brought in are bright (tier 2), and
-  // the lines the expanded node already had are highlighted but quieter (tier 1).
+  // only the expanded node's own lines are highlighted, in two strengths: the new ones, which
+  // reach the nodes it just brought in, are bright (tier 2); the ones it already had are
+  // quiet (tier 1). Any other line, even one touching a new node, is not highlighted.
   const hl = useContext(HighlightContext);
   const touches = (set: ReadonlySet<string>) =>
     set.has(rel.sourceId) || set.has(rel.targetId);
   const tier: 0 | 1 | 2 = !hl
     ? 0
     : hl.added
-      ? touches(hl.added)
-        ? 2
-        : touches(hl.roots)
-          ? 1
-          : 0
+      ? touches(hl.roots)
+        ? touches(hl.added)
+          ? 2
+          : 1
+        : 0
       : touches(hl.roots)
         ? 2
         : 0;
   const anyHl = hl !== null;
   const lit = tier === 2;
   const soft = tier === 1;
+  // A line the latest expansion added: it gets a halo, and the halo pulses once on arrival.
+  const isNewEdge = tier === 2 && Boolean(hl?.added);
+  const haloRef = useRef<SVGPathElement>(null);
+  const still = lite || prefersReducedMotion();
+  useEffect(() => {
+    if (!isNewEdge || still) return;
+    // Opacity only, so it costs next to nothing. It ends on the halo's resting look.
+    haloRef.current?.animate([{ opacity: 0.9 }, { opacity: 0.22 }], {
+      duration: 1100,
+      easing: "ease-out",
+    });
+  }, [isNewEdge, still]);
   const lens = useContext(LensContext);
   // A lens that dims keeps only the lines touching what stands out.
   const lensDim = Boolean(
@@ -113,6 +126,18 @@ function RelationEdgeImpl({
 
   return (
     <>
+      {isNewEdge && (
+        <path
+          ref={haloRef}
+          d={path}
+          fill="none"
+          stroke={def.color}
+          strokeWidth={10}
+          strokeLinecap="round"
+          opacity={0.22}
+          pointerEvents="none"
+        />
+      )}
       {selected && (
         <path
           d={path}
@@ -139,17 +164,22 @@ function RelationEdgeImpl({
           stroke: anColor ?? def.color,
           strokeWidth: selected
             ? Math.max(3.6, widthFor + 1.6)
-            : lit || anLit
-              ? Math.max(3.4, widthFor + 1.2)
-              : soft
-                ? Math.max(2.4, widthFor + 0.5)
+            : isNewEdge
+              ? Math.max(4, widthFor + 1.8)
+              : lit || anLit
+                ? Math.max(3.4, widthFor + 1.2)
                 : widthFor,
           filter: selected
             ? `drop-shadow(0 0 5px ${def.color})`
-            : lit || anLit
+            : isNewEdge
+              ? `drop-shadow(0 0 6px ${def.color})`
+              : lit || anLit
               ? `drop-shadow(0 0 4px ${anColor ?? def.color})`
               : undefined,
-          transition: "opacity 250ms, stroke-width 250ms",
+          // An old line settles down from bright to quiet slowly enough to be noticed.
+          transition: soft
+            ? "opacity 900ms ease-out, stroke-width 250ms"
+            : "opacity 250ms, stroke-width 250ms",
           strokeDasharray: derived
             ? `0.1 ${Math.max(6, widthFor * 1.8)}`
             : def.async || anLit
@@ -160,7 +190,7 @@ function RelationEdgeImpl({
             selected || lit || anLit
               ? 1
               : soft
-                ? 0.6
+                ? 0.5
                 : faded
                   ? 0.12
                   : 0.8,
@@ -180,7 +210,7 @@ function RelationEdgeImpl({
               strokeDashoffset={-9 * i}
               pointerEvents="none"
               style={{
-                opacity: faded ? 0.12 : soft ? 0.6 : 0.95,
+                opacity: faded ? 0.12 : soft ? 0.5 : 0.95,
                 transition: "opacity 250ms",
               }}
             />
@@ -202,7 +232,7 @@ function RelationEdgeImpl({
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + offset}px)`,
               pointerEvents: labelOn ? "all" : "none",
-              opacity: labelOn ? (faded ? 0.25 : 1) : 0,
+              opacity: labelOn ? (faded ? 0.25 : soft ? 0.65 : 1) : 0,
               scale: selected ? "1.08" : undefined,
               transition: "opacity 300ms",
               background: selected

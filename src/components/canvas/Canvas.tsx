@@ -468,13 +468,15 @@ function Flow({
     const strong = new Set<string>(roots);
     const soft = new Set<string>();
     if (expansion) {
-      // New nodes are bright. The expanded node's earlier relations, and the far ends of
-      // the new ones, are highlighted but quieter.
+      // Only the expanded node's own relations are highlighted. The new nodes are bright;
+      // the nodes it was already connected to are highlighted but quieter. A new node's
+      // relations to anything other than the expanded node are not highlighted at all.
       for (const id of fresh) strong.add(id);
       for (const r of view.relations) {
-        const touchesNew = fresh.has(r.sourceId) || fresh.has(r.targetId);
         const touchesRoot = roots.has(r.sourceId) || roots.has(r.targetId);
-        if (!touchesNew && !touchesRoot) continue;
+        if (!touchesRoot) continue;
+        const touchesNew = fresh.has(r.sourceId) || fresh.has(r.targetId);
+        if (touchesNew) continue; // both ends are already bright
         for (const end of [r.sourceId, r.targetId])
           if (!strong.has(end)) soft.add(end);
       }

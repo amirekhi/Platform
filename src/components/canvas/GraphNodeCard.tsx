@@ -29,7 +29,7 @@ import {
 } from "react";
 import { HEALTH_COLOR, LIFECYCLE_LABEL, NODE_KINDS } from "@/domain/registry";
 import type { NodeView } from "@/domain/types";
-import { useApp, useLite } from "@/state/store";
+import { prefersReducedMotion, useApp, useLite } from "@/state/store";
 import { KindIcon } from "../icons";
 import { LENS_BY_ID } from "@/domain/lenses";
 import { AnalysisContext } from "@/components/analysis/context";
@@ -128,6 +128,20 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   const receded = hl !== null && !hl.strong.has(v.id) && !hl.soft.has(v.id);
   // Already connected before an expansion: still highlighted, but not as bright.
   const softened = hl !== null && !hl.strong.has(v.id) && hl.soft.has(v.id);
+  // Brought in by the latest expansion: ringed, and the ring pulses once on arrival.
+  const isNew = Boolean(hl?.added?.has(v.id));
+  const ringRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!isNew || lite || prefersReducedMotion()) return;
+    // Opacity and transform only. It ends on the ring's resting look, which stays.
+    ringRef.current?.animate(
+      [
+        { opacity: 0.95, transform: "scale(1.35)" },
+        { opacity: 0.55, transform: "scale(1)" },
+      ],
+      { duration: 1000, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+    );
+  }, [isNew, lite]);
   // A dimming lens (or a picked legend row) lets everything else step back, like heat vision.
   const lensDim = Boolean(lens?.hot && !lens.hot.has(v.id) && !selected);
   const highlighted = useApp(
@@ -167,6 +181,14 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
     level > 0 || selected || highlighted || isRoot || expanded || hover;
   const canOpen = canGoInside;
   const glow = selected ? kind.color : isRoot ? "var(--accent)" : null;
+  const ring = isNew ? (
+    <span
+      ref={ringRef}
+      aria-hidden
+      className={`pointer-events-none absolute ${v.open ? "-inset-1.5 rounded-[18px]" : "-inset-2.5 rounded-[22px]"}`}
+      style={{ border: "2px solid var(--accent)", opacity: 0.55 }}
+    />
+  ) : null;
 
   return (
     <>
@@ -285,7 +307,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 : receded
                   ? 0.45
                   : softened
-                    ? 0.75
+                    ? 0.7
                     : faint
                       ? 0.85
                       : 1,
@@ -307,6 +329,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               <GripHorizontal size={16} />
             </span>
           )}
+          {ring}
           <div
             className="flex items-center gap-2 px-3 pt-2"
             style={{ height: 46 }}
@@ -363,6 +386,8 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
           style={{
             width: NODE_W,
             height: NODE_H,
+            // A node that was already connected settles down slowly enough to be noticed.
+            transitionDuration: softened ? "800ms" : undefined,
             opacity: leaving
               ? 0
               : lensDim || anDim
@@ -370,7 +395,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 : receded
                   ? 0.3
                   : softened
-                    ? 0.65
+                    ? 0.55
                     : dim
                       ? 0.7
                     : faint
@@ -417,6 +442,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
               accent={isRoot}
               tint={tint}
             />
+            {ring}
             <span
               className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-panel"
               style={{ color: tint ?? kind.color }}
