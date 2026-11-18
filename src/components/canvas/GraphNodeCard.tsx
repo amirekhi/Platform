@@ -39,8 +39,24 @@ import { KindShape } from "../shapes";
 import { NODE_H, NODE_W, RING, SHAPE } from "./layout";
 import { useLevel } from "./lod";
 
-/** Ids connected to the highlighted node (itself included), or null when nothing is highlighted. */
-export const HighlightContext = createContext<Set<string> | null>(null);
+/**
+ * What is highlighted on the canvas, or null when nothing is.
+ *
+ * A plain highlight lights the highlighted nodes and everything connected to them. After
+ * an expansion there are two strengths: what the expansion just brought in is bright, and
+ * what the expanded node was already showing is highlighted but quieter.
+ */
+export interface HighlightState {
+  /** The highlighted nodes themselves. */
+  roots: ReadonlySet<string>;
+  /** Nodes an expansion just brought in, or null for a plain highlight. */
+  added: ReadonlySet<string> | null;
+  /** Nodes drawn at full strength. */
+  strong: ReadonlySet<string>;
+  /** Nodes drawn highlighted but quieter. */
+  soft: ReadonlySet<string>;
+}
+export const HighlightContext = createContext<HighlightState | null>(null);
 
 export type GraphNodeData = { view: NodeView; fresh?: boolean } & Record<
   string,
@@ -81,7 +97,7 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
   const setHoverNode = useApp((s) => s.setHoverNode);
   const hoverTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
-  const lit = useContext(HighlightContext);
+  const hl = useContext(HighlightContext);
   const lens = useContext(LensContext);
   const lensCat = lens ? (lens.cat.get(v.id) ?? null) : null;
   const lensDef = lens ? LENS_BY_ID[lens.id] : null;
@@ -109,7 +125,9 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
     : "";
   // With a recolouring lens the shape wears the lens colour; nodes outside the lens look neutral.
   const tint = lensDef?.tints ? (lensCat?.color ?? "var(--muted)") : undefined;
-  const receded = lit !== null && !lit.has(v.id);
+  const receded = hl !== null && !hl.strong.has(v.id) && !hl.soft.has(v.id);
+  // Already connected before an expansion: still highlighted, but not as bright.
+  const softened = hl !== null && !hl.strong.has(v.id) && hl.soft.has(v.id);
   // A dimming lens (or a picked legend row) lets everything else step back, like heat vision.
   const lensDim = Boolean(lens?.hot && !lens.hot.has(v.id) && !selected);
   const highlighted = useApp(
@@ -266,9 +284,11 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 ? 0.16
                 : receded
                   ? 0.45
-                  : faint
-                    ? 0.85
-                    : 1,
+                  : softened
+                    ? 0.75
+                    : faint
+                      ? 0.85
+                      : 1,
           }}
         >
           <Handle id="l" type="target" position={Position.Left} />
@@ -349,8 +369,10 @@ function GraphNodeCardImpl({ data }: NodeProps<GraphFlowNode>) {
                 ? 0.16
                 : receded
                   ? 0.3
-                  : dim
-                    ? 0.7
+                  : softened
+                    ? 0.65
+                    : dim
+                      ? 0.7
                     : faint
                       ? 0.8
                       : 1,

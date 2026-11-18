@@ -13,6 +13,7 @@ import { memo, useContext } from "react";
 import { AnalysisContext } from "@/components/analysis/context";
 import { ANALYSIS_COLOR } from "@/components/analysis/marks";
 import { LensContext } from "./lensContext";
+import { HighlightContext } from "./GraphNodeCard";
 import { lineStyle } from "@/domain/relationStyle";
 import { RELATION_TYPES } from "@/domain/registry";
 import type { RelationView } from "@/domain/types";
@@ -53,13 +54,26 @@ function RelationEdgeImpl({
   const select = useApp((s) => s.select);
   const level = useLevel();
   const lite = useLite();
-  // After expanding a node, its connections stay bright and everything else recedes.
-  const hl = useApp(
-    (s) => s.tabs.find((t) => t.id === s.activeTabId)?.highlightIds,
-  );
-  const anyHl = (hl?.length ?? 0) > 0;
-  const lit =
-    anyHl && (hl!.includes(rel.sourceId) || hl!.includes(rel.targetId));
+  // A highlight keeps its lines bright and lets everything else recede. After an expansion
+  // there are two strengths: lines to the nodes it just brought in are bright (tier 2), and
+  // the lines the expanded node already had are highlighted but quieter (tier 1).
+  const hl = useContext(HighlightContext);
+  const touches = (set: ReadonlySet<string>) =>
+    set.has(rel.sourceId) || set.has(rel.targetId);
+  const tier: 0 | 1 | 2 = !hl
+    ? 0
+    : hl.added
+      ? touches(hl.added)
+        ? 2
+        : touches(hl.roots)
+          ? 1
+          : 0
+      : touches(hl.roots)
+        ? 2
+        : 0;
+  const anyHl = hl !== null;
+  const lit = tier === 2;
+  const soft = tier === 1;
   const lens = useContext(LensContext);
   // A lens that dims keeps only the lines touching what stands out.
   const lensDim = Boolean(
@@ -77,8 +91,9 @@ function RelationEdgeImpl({
       ? ANALYSIS_COLOR.path
       : ANALYSIS_COLOR.hard
     : undefined;
-  const faded = (anyHl && !lit && !selected) || lensDim || anDim;
-  const labelOn = (level > 0 || selected || lit || anLit) && !lensDim && !anDim;
+  const faded = (anyHl && tier === 0 && !selected) || lensDim || anDim;
+  const labelOn =
+    (level > 0 || selected || lit || soft || anLit) && !lensDim && !anDim;
 
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -126,7 +141,9 @@ function RelationEdgeImpl({
             ? Math.max(3.6, widthFor + 1.6)
             : lit || anLit
               ? Math.max(3.4, widthFor + 1.2)
-              : widthFor,
+              : soft
+                ? Math.max(2.4, widthFor + 0.5)
+                : widthFor,
           filter: selected
             ? `drop-shadow(0 0 5px ${def.color})`
             : lit || anLit
@@ -139,7 +156,14 @@ function RelationEdgeImpl({
               ? "6 4"
               : undefined,
           strokeLinecap: derived ? "round" : undefined,
-          opacity: selected || lit || anLit ? 1 : faded ? 0.12 : 0.8,
+          opacity:
+            selected || lit || anLit
+              ? 1
+              : soft
+                ? 0.6
+                : faded
+                  ? 0.12
+                  : 0.8,
         }}
       />
       {/* Mixed line: each kind takes a turn along the stone base, like a barber pole. */}
@@ -156,7 +180,7 @@ function RelationEdgeImpl({
               strokeDashoffset={-9 * i}
               pointerEvents="none"
               style={{
-                opacity: faded ? 0.12 : 0.95,
+                opacity: faded ? 0.12 : soft ? 0.6 : 0.95,
                 transition: "opacity 250ms",
               }}
             />

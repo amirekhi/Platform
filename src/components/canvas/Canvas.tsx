@@ -25,6 +25,7 @@ import type { GraphView, Id } from "@/domain/types";
 import { useAsync } from "@/lib/useAsync";
 import { currentScope, type Tab, useApp } from "@/state/store";
 import { CanvasBar } from "./CanvasBar";
+import { DepthFrames, type DepthFrame } from "./DepthFrames";
 import { DetailBubble, type DetailFlowNode } from "./DetailBubble";
 import { detailCategories } from "./details";
 import {
@@ -37,6 +38,7 @@ import {
   GraphNodeCard,
   HighlightContext,
   type GraphFlowNode,
+  type HighlightState,
 } from "./GraphNodeCard";
 import { useTheme } from "@/lib/theme";
 import { FocusCard } from "./FocusCard";
@@ -109,6 +111,24 @@ export function Canvas({ tab }: { tab: Tab }) {
     }),
   }));
   const loaded = data ?? last;
+  // The levels of containment we are inside, outermost first. Inside a node, that is the node
+  // and everything that contains it; around a node (focus), everything that contains it.
+  // The previous frames stay until the new ones are known, so nothing flickers.
+  const { data: frameNow, last: frameLast } = useAsync<DepthFrame[]>(
+    `frames:${scope.rootId ?? "~"}:${scope.mode}`,
+    async () => {
+      const rid = scope.rootId;
+      if (!rid) return [];
+      const ds = getDataSource();
+      const [node, ancestors] = await Promise.all([
+        ds.getNode(rid),
+        ds.getAncestors(rid),
+      ]);
+      const chain = scope.mode === "inside" && node ? [...ancestors, node] : ancestors;
+      return chain.map((n) => ({ id: n.id, name: n.name, kind: n.kind }));
+    },
+  );
+  const frames = frameNow ?? frameLast ?? [];
   const motion = useApp((s) => (s.motion?.tabId === tab.id ? s.motion : null));
   const lead = motion?.kind === "enter" && motion.phase === "out";
   const anim =
@@ -162,6 +182,7 @@ export function Canvas({ tab }: { tab: Tab }) {
       <AnalysisContext.Provider value={marks}>
         <ReactFlowProvider>
           <div className="flex h-full w-full flex-col">
+            <DepthFrames frames={frames}>
             <div className="relative min-h-0 w-full flex-1">
               <div
                 className={`absolute inset-0 ${anim} ${lead ? "motion-lead" : ""}`}
@@ -197,6 +218,7 @@ export function Canvas({ tab }: { tab: Tab }) {
                 <EmptyCanvas inside={scope.mode === "inside"} />
               )}
             </div>
+            </DepthFrames>
             <SelectionAnnouncer tab={tab} view={loaded?.view} />
             <HintBar tab={tab} view={loaded?.view} />
             <HoverCard />
@@ -403,16 +425,64 @@ function Flow({
     const sel = s.tabs.find((t) => t.id === s.activeTabId)?.selection;
     return sel?.type === "relation" ? sel.id : null;
   });
-  const lit = useMemo(() => {
-    const marked = (highlightIds ?? []).filter((id) =>
-      view.nodes.some((n) => n.id === id),
-    );
-    if (marked.length === 0) return null;
-    const set = new Set<string>(marked);
-    const m = new Set(marked);
-    for (const r of view.relations) {
-      if (m.has(r.sourceId)) set.add(r.targetId);
-      if (m.has(r.targetId)) set.add(r.sourceId);
+  const transient = useApp(
+    (s) =>
+      s.tabs.find((t) => t.id === s.activeTabId)?.highlightTransient ?? false,
+  );
+  const expandedIds = useApp(
+    (s) => s.tabs.find((t) => t.id === s.activeTabId)?.expandedIds,
+  );
+  const expandedKey = useMemo(
+    () => [...(expandedIds ?? [])].sort().join(","),
+    [expandedIds],
+  );
+  // Which nodes the latest expansion brought in: whatever is in this view and was not in
+  // the previous one, but only when the set of expansions changed in between. Other view
+  // changes (a filter, a lens) keep the answer, so the new nodes stay marked.
+  const [seen, setSeen] = useState<{
+    view: GraphView;
+    key: string;
+    added: ReadonlySet<string>;
+  }>(() => ({ view, key: expandedKey, added: new Set<string>() }));
+  if (seen.view !== view) {
+    let added = seen.added;
+    if (seen.key !== expandedKey) {
+      const before = new Set(seen.view.nodes.map((n) => n.id));
+      added = new Set(
+        view.nodes.filter((n) => !before.has(n.id)).map((n) => n.id),
+      );
+    }
+    setSeen({ view, key: expandedKey, added });
+  }
+  const added = seen.added;
+
+  const highlight = useMemo<HighlightState | null>(() => {
+    const inView = new Set(view.nodes.map((n) => n.id));
+    const roots = new Set((highlightIds ?? []).filter((id) => inView.has(id)));
+    if (roots.size === 0) return null;
+    // Only the highlight that an expansion made is split into new and already-there.
+    const fresh = transient
+      ? new Set([...added].filter((id) => inView.has(id)))
+      : new Set<string>();
+    const expansion = fresh.size > 0;
+    const strong = new Set<string>(roots);
+    const soft = new Set<string>();
+    if (expansion) {
+      // New nodes are bright. The expanded node's earlier relations, and the far ends of
+      // the new ones, are highlighted but quieter.
+      for (const id of fresh) strong.add(id);
+      for (const r of view.relations) {
+        const touchesNew = fresh.has(r.sourceId) || fresh.has(r.targetId);
+        const touchesRoot = roots.has(r.sourceId) || roots.has(r.targetId);
+        if (!touchesNew && !touchesRoot) continue;
+        for (const end of [r.sourceId, r.targetId])
+          if (!strong.has(end)) soft.add(end);
+      }
+    } else {
+      for (const r of view.relations) {
+        if (roots.has(r.sourceId)) strong.add(r.targetId);
+        if (roots.has(r.targetId)) strong.add(r.sourceId);
+      }
     }
     // The ends of a selected relation stay readable while the rest recedes.
     const sr = selectedRel
@@ -421,11 +491,11 @@ function Flow({
         )
       : undefined;
     if (sr) {
-      set.add(sr.sourceId);
-      set.add(sr.targetId);
+      strong.add(sr.sourceId);
+      strong.add(sr.targetId);
     }
-    return set;
-  }, [view, highlightIds, selectedRel]);
+    return { roots, added: expansion ? fresh : null, strong, soft };
+  }, [view, highlightIds, transient, added, selectedRel]);
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(built.nodes);
   const [prevBuilt, setPrevBuilt] = useState(built);
   // Things that were just removed stay on screen for a moment and fade away.
@@ -610,7 +680,7 @@ function Flow({
   }, [built, fitView, reduced, fitMin]);
 
   return (
-    <HighlightContext.Provider value={lit}>
+    <HighlightContext.Provider value={highlight}>
       <ReactFlow
         onlyRenderVisibleElements
         nodesDraggable
