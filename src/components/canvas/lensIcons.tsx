@@ -9,6 +9,7 @@ import {
   Hourglass,
   Layers,
   Network,
+  Server,
   Shapes,
   ShieldCheck,
   Users,
@@ -29,6 +30,7 @@ const ICONS: Record<string, (s: number) => ReactNode> = {
   building: (s) => <Building2 size={s} />,
   briefcase: (s) => <Briefcase size={s} />,
   crosshair: (s) => <Crosshair size={s} />,
+  server: (s) => <Server size={s} />,
 };
 
 export function LensIcon({ name, size = 14 }: { name: string; size?: number }) {

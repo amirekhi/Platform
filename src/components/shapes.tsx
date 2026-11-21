@@ -153,6 +153,28 @@ const SHAPES: Record<ShapeId, (c: Ctx) => ReactNode> = {
       {L(c, "M30 62 H84 M30 38 H84")}
     </>
   ),
+  /**
+   * A machine inside a machine: an outer frame (the host) holding a dashed inner frame (the
+   * virtual machine) with a few lines of content. Distinct from the solid, flat server unit.
+   */
+  vm: (c) => (
+    <>
+      {R(c, { x: 6, y: 10, width: 88, height: 80, rx: 11 })}
+      <rect
+        {...(c.line as SVGProps<SVGRectElement>)}
+        x="22"
+        y="27"
+        width="56"
+        height="46"
+        rx="6"
+        fill="none"
+        strokeDasharray="5 4"
+      />
+      {L(c, "M34 42 H66 M34 52 H58 M34 62 H48")}
+      <circle cx="17" cy="20" r="2.4" fill={c.color} />
+      <circle cx="26" cy="20" r="2.4" fill={c.color} opacity=".5" />
+    </>
+  ),
   arch: (c) => (
     <>
       {P(c, "M6 90 V50 A44 44 0 0 1 94 50 V90 Z")}

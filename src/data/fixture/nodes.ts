@@ -164,24 +164,62 @@ n(
   { props: { skus: 12000, valueEur: "4.1M" }, tags: ["inventory"] },
 );
 
-/* ---------------- Physical: data centre down to bare metal ---------------- */
+/* ---------------- Infrastructure ----------------
+ *
+ * Its own hierarchy, next to the organisation and the software systems.
+ *
+ * Containment follows the physical world:
+ *   data centre > rack > physical host > the virtual machines (or the server) running on it
+ * A data centre is a top-level node. A physical host contains what runs directly on it, so
+ * moving a machine to another host is a change of parent.
+ *
+ * Clusters are logical: their nodes are spread over several hosts, so clusters sit at the top
+ * level too and are tied to their nodes by `has_node` relations.
+ *
+ * What runs on the infrastructure is tied to it by relations, not containment:
+ *   service <- deployment_of - deployment - runs_on > cluster - has_node > machine
+ *   database / cache / queue - hosted_on > machine or server
+ * so any service can be traced down to a rack and a data centre (see domain/placement.ts).
+ */
+
+/* Data centres */
 n(
   "dc-fra1",
   "datacenter",
   "Frankfurt DC FRA1",
-  "co-group",
+  null,
   "Primary data centre: 2 halls, N+1 power, 14 racks.",
   {
     owner: "team-platform",
-    props: { tier: "III", powerKw: 480, location: "Frankfurt" },
+    tags: ["primary"],
+    props: { tier: "III", powerKw: 480, location: "Frankfurt", role: "Primary" },
   },
 );
+n(
+  "dc-ams1",
+  "datacenter",
+  "Amsterdam DC AMS1",
+  null,
+  "Disaster-recovery data centre: the standby cluster and the database replica.",
+  {
+    owner: "team-platform",
+    tags: ["dr"],
+    props: {
+      tier: "III",
+      powerKw: 220,
+      location: "Amsterdam",
+      role: "Disaster recovery",
+    },
+  },
+);
+
+/* Racks */
 n(
   "rack-fra-a12",
   "rack",
   "Rack FRA1-A12",
   "dc-fra1",
-  "Compute rack, 42U. Hosts production database and Kubernetes workers.",
+  "Compute rack, 42U. Hosts the production database and Kubernetes workers.",
   { owner: "team-platform", props: { units: 42, usedU: 31 } },
 );
 n(
@@ -189,45 +227,39 @@ n(
   "rack",
   "Rack FRA1-A13",
   "dc-fra1",
-  "Compute rack, 42U. Kubernetes workers and staging.",
-  { owner: "team-platform", props: { units: 42, usedU: 24 } },
+  "Compute rack, 42U. Kubernetes workers, staging and the orders data.",
+  { owner: "team-platform", props: { units: 42, usedU: 33 } },
 );
 n(
-  "hw-fra-a12-05",
-  "hardware",
-  "dell-r760-a12-05",
-  "rack-fra-a12",
-  "Dell PowerEdge R760. Kubernetes worker.",
+  "rack-ams-b03",
+  "rack",
+  "Rack AMS1-B03",
+  "dc-ams1",
+  "Compute rack, 42U. The standby cluster and the database replica.",
+  { owner: "team-platform", props: { units: 42, usedU: 12 } },
+);
+
+/* Network devices */
+n(
+  "net-core-01",
+  "network",
+  "Core router CORE-01",
+  "dc-fra1",
+  "Core router with uplinks to the internet and the offices.",
   {
     owner: "team-platform",
-    props: { cpu: "2x Xeon 6430", ramGb: 512, serial: "7XK2M93" },
+    props: { model: "Juniper MX304", uplinks: "2x100G" },
   },
 );
 n(
-  "hw-fra-a12-07",
-  "hardware",
-  "dell-r760-a12-07",
-  "rack-fra-a12",
-  "Dell PowerEdge R760. Hosts the primary MongoDB server (mongo-prod-01).",
+  "net-core-02",
+  "network",
+  "Core router CORE-02",
+  "dc-ams1",
+  "Core router of the Amsterdam site, linked to Frankfurt.",
   {
     owner: "team-platform",
-    props: {
-      cpu: "2x Xeon 6430",
-      ramGb: 512,
-      nvme: "8x 3.84TB",
-      serial: "7XK2P10",
-    },
-  },
-);
-n(
-  "hw-fra-a13-02",
-  "hardware",
-  "dell-r760-a13-02",
-  "rack-fra-a13",
-  "Dell PowerEdge R760. Kubernetes worker for production and staging.",
-  {
-    owner: "team-platform",
-    props: { cpu: "2x Xeon 6430", ramGb: 256, serial: "7XK2Q55" },
+    props: { model: "Juniper MX204", uplinks: "2x100G" },
   },
 );
 n(
@@ -247,14 +279,256 @@ n(
   { owner: "team-platform", props: { model: "Arista 7050X3", ports: 54 } },
 );
 n(
-  "net-core-01",
+  "net-tor-b03",
   "network",
-  "Core router CORE-01",
-  "dc-fra1",
-  "Core router with uplinks to the internet and the offices.",
+  "Switch TOR-B03",
+  "rack-ams-b03",
+  "Top-of-rack switch, 48x25G + 6x100G.",
+  { owner: "team-platform", props: { model: "Arista 7050X3", ports: 54 } },
+);
+
+/* Physical hosts. "role" says what the host is for: a virtualisation host carries virtual
+   machines, a bare-metal host runs one server directly. */
+n(
+  "hw-fra-a12-05",
+  "hardware",
+  "dell-r760-a12-05",
+  "rack-fra-a12",
+  "Dell PowerEdge R760. Virtualisation host for a production worker and the cart cache.",
   {
     owner: "team-platform",
-    props: { model: "Juniper MX304", uplinks: "2x100G" },
+    props: {
+      role: "virtualisation host",
+      cpu: "2x Xeon 6430",
+      ramGb: 512,
+      serial: "7XK2M93",
+    },
+  },
+);
+n(
+  "hw-fra-a12-07",
+  "hardware",
+  "dell-r760-a12-07",
+  "rack-fra-a12",
+  "Dell PowerEdge R760. Hosts the primary MongoDB server (mongo-prod-01).",
+  {
+    owner: "team-platform",
+    props: {
+      role: "bare metal",
+      cpu: "2x Xeon 6430",
+      ramGb: 512,
+      nvme: "8x 3.84TB",
+      serial: "7XK2P10",
+    },
+  },
+);
+n(
+  "hw-fra-a13-02",
+  "hardware",
+  "dell-r760-a13-02",
+  "rack-fra-a13",
+  "Dell PowerEdge R760. Virtualisation host for a production worker and the staging worker.",
+  {
+    owner: "team-platform",
+    props: {
+      role: "virtualisation host",
+      cpu: "2x Xeon 6430",
+      ramGb: 256,
+      serial: "7XK2Q55",
+    },
+  },
+);
+n(
+  "hw-fra-a13-04",
+  "hardware",
+  "dell-r760-a13-04",
+  "rack-fra-a13",
+  "Dell PowerEdge R760. Virtualisation host for a production worker, the orders database and Kafka.",
+  {
+    owner: "team-platform",
+    props: {
+      role: "virtualisation host",
+      cpu: "2x Xeon 6430",
+      ramGb: 768,
+      serial: "7XK2R71",
+    },
+  },
+);
+n(
+  "hw-ams-b03-01",
+  "hardware",
+  "dell-r760-b03-01",
+  "rack-ams-b03",
+  "Dell PowerEdge R760. Virtualisation host for the standby cluster.",
+  {
+    owner: "team-platform",
+    props: {
+      role: "virtualisation host",
+      cpu: "2x Xeon 6430",
+      ramGb: 384,
+      serial: "7XK3A20",
+    },
+  },
+);
+n(
+  "hw-ams-b03-02",
+  "hardware",
+  "dell-r660-b03-02",
+  "rack-ams-b03",
+  "Dell PowerEdge R660. Hosts the MongoDB replica (mongo-prod-02).",
+  {
+    owner: "team-platform",
+    props: {
+      role: "bare metal",
+      cpu: "2x Xeon 6430",
+      ramGb: 256,
+      nvme: "4x 3.84TB",
+      serial: "7XK3A31",
+    },
+  },
+);
+
+/* Servers: an operating system running directly on a physical host (no hypervisor). */
+n(
+  "srv-mongo-01",
+  "server",
+  "mongo-prod-01",
+  "hw-fra-a12-07",
+  "Primary MongoDB host for the catalog database.",
+  { owner: "team-platform", props: { os: "Ubuntu 24.04", cpu: 16, ramGb: 64 } },
+);
+n(
+  "srv-mongo-02",
+  "server",
+  "mongo-prod-02",
+  "hw-ams-b03-02",
+  "Secondary MongoDB host: a replica of the catalog database, in Amsterdam.",
+  { owner: "team-platform", props: { os: "Ubuntu 24.04", cpu: 16, ramGb: 64 } },
+);
+
+/* Virtual machines: each runs on one physical host, which contains it. */
+n(
+  "vm-k8sp-w1",
+  "vm",
+  "k8s-prod-w01",
+  "hw-fra-a12-05",
+  "Worker node of the production cluster.",
+  {
+    owner: "team-platform",
+    props: { role: "k8s worker", vcpu: 32, ramGb: 192, os: "Ubuntu 24.04" },
+  },
+);
+n(
+  "vm-redis-cart-01",
+  "vm",
+  "redis-cart-01",
+  "hw-fra-a12-05",
+  "Runs the cart Redis.",
+  {
+    owner: "team-checkout",
+    props: { role: "redis", vcpu: 8, ramGb: 64, os: "Ubuntu 24.04" },
+  },
+);
+n(
+  "vm-k8sp-w2",
+  "vm",
+  "k8s-prod-w02",
+  "hw-fra-a13-02",
+  "Worker node of the production cluster.",
+  {
+    owner: "team-platform",
+    props: { role: "k8s worker", vcpu: 32, ramGb: 192, os: "Ubuntu 24.04" },
+  },
+);
+n(
+  "vm-k8ss-w1",
+  "vm",
+  "k8s-staging-w01",
+  "hw-fra-a13-02",
+  "Worker node of the staging cluster.",
+  {
+    owner: "team-platform",
+    props: { role: "k8s worker", vcpu: 16, ramGb: 96, os: "Ubuntu 24.04" },
+  },
+);
+n(
+  "vm-k8sp-w3",
+  "vm",
+  "k8s-prod-w03",
+  "hw-fra-a13-04",
+  "Worker node of the production cluster.",
+  {
+    owner: "team-platform",
+    props: { role: "k8s worker", vcpu: 32, ramGb: 192, os: "Ubuntu 24.04" },
+  },
+);
+n(
+  "vm-pg-orders-01",
+  "vm",
+  "pg-orders-01",
+  "hw-fra-a13-04",
+  "Runs the orders PostgreSQL primary.",
+  {
+    owner: "team-fulfilment",
+    props: { role: "postgresql", vcpu: 16, ramGb: 128, os: "Ubuntu 24.04" },
+  },
+);
+n(
+  "vm-kafka-01",
+  "vm",
+  "kafka-01",
+  "hw-fra-a13-04",
+  "Kafka broker for the order-events topic.",
+  {
+    owner: "team-fulfilment",
+    props: { role: "kafka broker", vcpu: 8, ramGb: 64, os: "Ubuntu 24.04" },
+  },
+);
+n(
+  "vm-k8sdr-w1",
+  "vm",
+  "k8s-dr-w01",
+  "hw-ams-b03-01",
+  "Worker node of the standby cluster.",
+  {
+    owner: "team-platform",
+    props: { role: "k8s worker", vcpu: 16, ramGb: 96, os: "Ubuntu 24.04" },
+  },
+);
+
+/* Clusters: logical groups of machines, tied to their nodes by has_node. */
+n(
+  "k8s-prod",
+  "cluster",
+  "k8s-prod",
+  null,
+  "Production Kubernetes cluster in Frankfurt. Three of its worker nodes are modelled here.",
+  {
+    owner: "team-platform",
+    props: { version: "1.33", nodes: 24, site: "Frankfurt" },
+  },
+);
+n(
+  "k8s-stg",
+  "cluster",
+  "k8s-staging",
+  null,
+  "Staging Kubernetes cluster in Frankfurt.",
+  {
+    owner: "team-platform",
+    props: { version: "1.33", nodes: 6, site: "Frankfurt" },
+  },
+);
+n(
+  "k8s-dr",
+  "cluster",
+  "k8s-dr",
+  null,
+  "Standby Kubernetes cluster in Amsterdam, scaled down until a failover.",
+  {
+    owner: "team-platform",
+    tags: ["dr"],
+    props: { version: "1.33", nodes: 3, site: "Amsterdam" },
   },
 );
 
@@ -387,7 +661,7 @@ n(
   "system",
   "Delivery & Platform",
   null,
-  "Environments, clusters, servers and observability tooling shared by all systems.",
+  "Environments and observability tooling shared by all systems. The clusters, machines and hardware they run on are under Infrastructure.",
   { owner: "team-platform", tags: ["shared", "tier-1"] },
 );
 
@@ -556,6 +830,34 @@ n(
   "sys-checkout",
   "Staging deployment of the checkout service (2 replicas).",
   { owner: "team-checkout", props: { replicas: 2 } },
+);
+n(
+  "dep-checkout-dr",
+  "deployment",
+  "checkout @ dr",
+  "sys-checkout",
+  "Standby deployment of the checkout service in Amsterdam (1 replica, scaled up on failover).",
+  { owner: "team-checkout", props: { replicas: 1, standby: true } },
+);
+n(
+  "dep-payments-prod",
+  "deployment",
+  "payments @ production",
+  "sys-checkout",
+  "Production deployment of the Payments Service (3 replicas) in its own PCI namespace.",
+  {
+    owner: "team-checkout",
+    props: { replicas: 3, namespace: "payments", strategy: "RollingUpdate" },
+    tags: ["pci"],
+  },
+);
+n(
+  "dep-cart-prod",
+  "deployment",
+  "cart @ production",
+  "sys-checkout",
+  "Production deployment of the Cart Service (4 replicas).",
+  { owner: "team-checkout", props: { replicas: 4, strategy: "RollingUpdate" } },
 );
 n(
   "ext-stripe",
@@ -857,14 +1159,20 @@ n(
   },
 );
 
-/* ---------------- Delivery & Platform ---------------- */
+/* ---------------- Delivery & Platform ----------------
+ * Environments are logical (what a release is promoted through) and say whether they take
+ * live traffic. `servesTraffic: false` means a failure there does not degrade the services
+ * deployed to it in production (see domain/analysis/blast.ts). */
 n(
   "env-prod",
   "environment",
   "Production",
   "sys-platform",
   "Customer-facing production environment.",
-  { owner: "team-platform", props: { region: "eu-central-1" } },
+  {
+    owner: "team-platform",
+    props: { region: "eu-central-1", servesTraffic: true },
+  },
 );
 n(
   "env-staging",
@@ -872,31 +1180,21 @@ n(
   "Staging",
   "sys-platform",
   "Pre-production verification environment.",
-  { owner: "team-platform", props: { region: "eu-central-1" } },
+  {
+    owner: "team-platform",
+    props: { region: "eu-central-1", servesTraffic: false },
+  },
 );
 n(
-  "k8s-prod",
-  "cluster",
-  "k8s-prod",
+  "env-dr",
+  "environment",
+  "Disaster recovery",
   "sys-platform",
-  "Production Kubernetes cluster.",
-  { owner: "team-platform", props: { version: "1.33", nodes: 24 } },
-);
-n(
-  "k8s-stg",
-  "cluster",
-  "k8s-staging",
-  "sys-platform",
-  "Staging Kubernetes cluster.",
-  { owner: "team-platform", props: { version: "1.33", nodes: 6 } },
-);
-n(
-  "srv-mongo-01",
-  "server",
-  "mongo-prod-01",
-  "sys-platform",
-  "Primary MongoDB host for the catalog database.",
-  { owner: "team-platform", props: { os: "Ubuntu 24.04", cpu: 16, ramGb: 64 } },
+  "Standby environment in Amsterdam, scaled up on a failover.",
+  {
+    owner: "team-platform",
+    props: { region: "eu-west", servesTraffic: false },
+  },
 );
 n(
   "obs-prom",

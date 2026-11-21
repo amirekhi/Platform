@@ -5,6 +5,7 @@ import {
   deviationCounter,
 } from "./compliance";
 import { HEALTH_COLOR, LAYERS, NODE_KINDS } from "./registry";
+import { PLACED_KINDS, sitesOf } from "./placement";
 import {
   computeScope,
   processFrameworks,
@@ -24,6 +25,7 @@ export type LensId =
   | "scope"
   | "assurance"
   | "layer"
+  | "hosting"
   | "owner"
   | "lifecycle"
   | "criticality"
@@ -124,6 +126,17 @@ const TECH = new Set([
 const layerOf = (n: NodeView) => NODE_KINDS[n.kind].layer;
 
 const NO_PROBLEM = cat("healthy", "Healthy", C.green);
+
+/* ---- Where it runs ---- */
+
+const NOT_PLACED = cat("noplace", "No placement recorded", C.red, true);
+const MULTI_SITE = cat("multisite", "More than one site", C.violet, true);
+const SITE_PALETTE = [C.blue, C.amber, C.teal, C.pink, C.green, C.orange];
+const siteColor = (id: Id) => {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return SITE_PALETTE[h % SITE_PALETTE.length];
+};
 
 /* ---- Lenses that look across the graph and the compliance model ---- */
 
@@ -302,6 +315,25 @@ export const LENSES: LensDef[] = [
       );
     },
     order: LAYERS.map((l) => cat(l.id, l.label, LAYER_COLORS[l.id] ?? C.slate)),
+  },
+  {
+    id: "hosting",
+    label: "Where it runs",
+    icon: "server",
+    audience: "Platform, SRE, capacity and disaster-recovery planning",
+    question:
+      "Which data centre does it run in, and what has no recorded placement?",
+    tints: true,
+    dims: false,
+    classify: (n, d) => {
+      if (!d || !PLACED_KINDS.has(n.kind)) return null;
+      const sites = sitesOf(d.snap, n.id);
+      if (sites.length === 0) return NOT_PLACED;
+      if (sites.length > 1) return MULTI_SITE;
+      const s = sites[0];
+      return cat(`site:${s}`, d.snap.nodes.get(s)?.name ?? s, siteColor(s));
+    },
+    order: [NOT_PLACED, MULTI_SITE],
   },
   {
     id: "owner",

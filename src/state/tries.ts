@@ -34,13 +34,35 @@ export const TRIES: Try[] = [
     },
   },
   {
+    id: "hardware",
+    title: "Follow checkout down to the hardware",
+    why: "See every route from a service to its rack and data centre.",
+    run: async () => {
+      await app().focusNode("svc-checkout");
+      say(
+        "Checkout Service is selected. Under Where it runs, every route goes service, deployment, cluster, machine, host, rack, data centre. Click any step to jump to it.",
+      );
+    },
+  },
+  {
+    id: "hosting",
+    title: "See which data centre everything runs in",
+    why: "Colour by site. Red marks anything with no recorded placement.",
+    run: async () => {
+      app().setLens("hosting");
+      say(
+        "Where it runs lens on. Colour is the data centre. Click a row in the legend to isolate it, or the red row to see what is not placed yet.",
+      );
+    },
+  },
+  {
     id: "datacenter",
-    title: "Go from a datacenter to a single server",
+    title: "Go from a datacenter to a single machine",
     why: "Drill down with Enter, climb back with Backspace.",
     run: async () => {
       await app().focusNode("dc-fra1");
       say(
-        "Frankfurt datacenter selected. Press Enter to go inside, then again on a rack.",
+        "Frankfurt datacenter selected. Press Enter to go inside, then again on a rack and a host.",
       );
     },
   },

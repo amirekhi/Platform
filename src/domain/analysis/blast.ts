@@ -38,9 +38,28 @@ export interface BlastResult {
 }
 
 /**
+ * A deployment that serves no traffic (staging, a standby) does not degrade the service it
+ * deploys: that service is alive in production without it. An environment says so with the
+ * property `servesTraffic: false`.
+ */
+function servesTraffic(snap: GraphSnapshot, deploymentId: Id): boolean {
+  for (const r of snap.outgoing.get(deploymentId) ?? [])
+    if (
+      r.type === "deployed_to" &&
+      snap.nodes.get(r.targetId)?.props.servesTraffic === false
+    )
+      return false;
+  return true;
+}
+
+/**
  * What breaks if this node goes down.
  * The origin is the node plus everything inside it. A failure then flows along relations
  * according to IMPACT_RULES. A container of an affected node is partly affected ("part-of").
+ *
+ * Because a physical host contains its virtual machines, losing a host or a whole data centre
+ * starts the failure at everything inside it, and the clusters, deployments, services and
+ * databases that depend on those machines follow.
  */
 export function blastRadius(
   snap: GraphSnapshot,
@@ -117,6 +136,8 @@ export function blastRadius(
       const rule = IMPACT_RULES[r.type];
       if (rule.flows !== "to-target" && rule.flows !== "both") continue;
       if (rule.strength === "soft" && !includeSoft) continue;
+      if (r.type === "deployment_of" && !servesTraffic(snap, r.sourceId))
+        continue;
       reach(
         r.targetId,
         cur,

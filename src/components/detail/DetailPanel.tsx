@@ -27,6 +27,7 @@ import { navigateTo } from "@/state/navigate";
 import { type NodeDetailTab, type Tab, useApp } from "@/state/store";
 import { KindIcon } from "../icons";
 import { MonitoringPane } from "./MonitoringPane";
+import { NodeHosting } from "./NodeHosting";
 import {
   DiagramsPane,
   DocsPane,
@@ -320,6 +321,8 @@ function NodeOverview({
       ) : (
         <span className="text-[13px] text-muted">Unowned</span>
       )}
+
+      <NodeHosting nodeId={node.id} />
 
       {(node.kind === "system" || node.kind === "process") && (
         <NodeCompliance nodeId={node.id} />

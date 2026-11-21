@@ -9,6 +9,15 @@ import { useAsync } from "@/lib/useAsync";
 import { currentScope, useApp } from "@/state/store";
 import { KindIcon } from "../icons";
 
+/** Top-level kinds that belong to the infrastructure hierarchy, in the order they are listed. */
+const INFRA_ROOTS = ["datacenter", "cluster"] as const;
+const NOT_ORGANISATION: readonly string[] = [
+  "system",
+  "process",
+  "client",
+  ...INFRA_ROOTS,
+];
+
 export function Explorer() {
   const openLandscape = useApp((s) => s.openLandscape);
   const { data: roots } = useAsync("explorer-roots", () =>
@@ -37,7 +46,7 @@ export function Explorer() {
         Organisation
       </div>
       {roots
-        ?.filter((r) => !["system", "process", "client"].includes(r.kind))
+        ?.filter((r) => !NOT_ORGANISATION.includes(r.kind))
         .map((r) => (
           <TreeNode key={r.id} node={r} depth={0} />
         ))}
@@ -57,6 +66,17 @@ export function Explorer() {
         .map((r) => (
           <TreeNode key={r.id} node={r} depth={0} />
         ))}
+      <div
+        className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted"
+        title="Data centres down to racks, hosts and virtual machines, and the clusters that run on them"
+      >
+        Infrastructure
+      </div>
+      {INFRA_ROOTS.flatMap((k) => roots?.filter((r) => r.kind === k) ?? []).map(
+        (r) => (
+          <TreeNode key={r.id} node={r} depth={0} />
+        ),
+      )}
       <div className="mt-4 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
         Clients and roles
       </div>
@@ -75,6 +95,9 @@ export function Explorer() {
     </nav>
   );
 }
+
+/** Kinds that never contain other nodes, so they get no expand arrow. */
+const NO_CHILDREN = new Set(["table", "team", "vm", "cluster"]);
 
 function TreeNode({
   node,
@@ -96,7 +119,7 @@ function TreeNode({
     async () => (open && !leaf ? getDataSource().getChildren(node.id) : []),
   );
   const kind = NODE_KINDS[node.kind];
-  const hasChildren = !leaf && node.kind !== "table" && node.kind !== "team";
+  const hasChildren = !leaf && !NO_CHILDREN.has(node.kind);
 
   return (
     <div>

@@ -25,9 +25,14 @@ export const RELATION_HELP: Record<RelationType, string> = {
   serves: "Provides its service to the target, such as a store or a team.",
   supplies: "Delivers goods or data to the target.",
   tracks: "Keeps a record of what happens to the target.",
-  connects_to: "A plain network or physical link.",
+  connects_to:
+    "A network link to the target, such as a host to its switch. If the target fails, this loses connectivity.",
   supported_by:
     "The process runs on the target system or component. If that fails, the process is affected.",
   performed_by: "The target role carries out this process.",
   involves: "The target client takes part in, or is served by, this process.",
+  has_node:
+    "The target machine is one of the nodes this cluster is made of. Losing one node degrades the cluster; it does not stop it.",
+  replicates_to:
+    "Keeps a copy of its data on the target, usually in another site, so the target can take over.",
 };

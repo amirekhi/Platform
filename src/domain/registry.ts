@@ -63,7 +63,8 @@ export type ShapeId =
   | "switch"
   | "process"
   | "person"
-  | "badge";
+  | "badge"
+  | "vm";
 
 export interface KindDef {
   label: string;
@@ -220,6 +221,15 @@ export const NODE_KINDS: Record<NodeKind, KindDef> = {
     monitorable: true,
     shape: "rackunit",
   },
+  vm: {
+    label: "Virtual machine",
+    plural: "Virtual machines",
+    color: "#ff9e80",
+    layer: "infrastructure",
+    icon: "vm",
+    monitorable: true,
+    shape: "vm",
+  },
   observability: {
     label: "Observability tool",
     plural: "Observability",
@@ -329,8 +339,8 @@ export const NODE_KINDS: Record<NodeKind, KindDef> = {
     shape: "rack",
   },
   hardware: {
-    label: "Hardware",
-    plural: "Hardware",
+    label: "Physical host",
+    plural: "Physical hosts",
     color: "#fda4af",
     layer: "physical",
     icon: "hardware",
@@ -528,6 +538,18 @@ export const RELATION_TYPES: Record<RelationType, RelationDef> = {
     inverse: "is involved in",
     color: "#7dd3fc",
     async: false,
+  },
+  has_node: {
+    label: "has node",
+    inverse: "is a node of",
+    color: "#fda4af",
+    async: false,
+  },
+  replicates_to: {
+    label: "replicates to",
+    inverse: "replicated from",
+    color: "#06b6d4",
+    async: true,
   },
 };
 

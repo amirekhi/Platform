@@ -27,6 +27,7 @@ export type NodeKind =
   | "environment"
   | "cluster"
   | "server"
+  | "vm"
   | "observability"
   | "dashboard"
   | "external"
@@ -70,7 +71,9 @@ export type RelationType =
   | "connects_to"
   | "supported_by"
   | "performed_by"
-  | "involves";
+  | "involves"
+  | "has_node"
+  | "replicates_to";
 
 export type Lifecycle =
   | "proposed"

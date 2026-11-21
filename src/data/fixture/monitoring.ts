@@ -196,6 +196,7 @@ export function buildMonitoring(node: GraphNode): MonitoringSnapshot | null {
       break;
     case "cluster":
     case "server":
+    case "vm":
       metrics = [
         metric(rand, "cpu", "CPU", "%", 35 + rand() * 25, 8, { threshold: 85 }),
         metric(rand, "mem", "Memory", "%", 50 + rand() * 20, 6, {

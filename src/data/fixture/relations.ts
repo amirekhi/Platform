@@ -122,12 +122,22 @@ r("repo-checkout", "triggers", "pipe-checkout");
 r("pipe-checkout", "produces", "img-checkout");
 r("dep-checkout-prod", "runs", "img-checkout");
 r("dep-checkout-stg", "runs", "img-checkout");
+r("dep-checkout-dr", "runs", "img-checkout");
 r("dep-checkout-prod", "deployment_of", "svc-checkout");
 r("dep-checkout-stg", "deployment_of", "svc-checkout");
+r("dep-checkout-dr", "deployment_of", "svc-checkout");
+r("dep-payments-prod", "deployment_of", "svc-payments");
+r("dep-cart-prod", "deployment_of", "svc-cart");
 r("dep-checkout-prod", "deployed_to", "env-prod");
 r("dep-checkout-stg", "deployed_to", "env-staging");
+r("dep-checkout-dr", "deployed_to", "env-dr");
+r("dep-payments-prod", "deployed_to", "env-prod");
+r("dep-cart-prod", "deployed_to", "env-prod");
 r("dep-checkout-prod", "runs_on", "k8s-prod");
 r("dep-checkout-stg", "runs_on", "k8s-stg");
+r("dep-checkout-dr", "runs_on", "k8s-dr");
+r("dep-payments-prod", "runs_on", "k8s-prod");
+r("dep-cart-prod", "runs_on", "k8s-prod");
 
 /* ---------- Catalog ---------- */
 r("svc-catalog", "exposes", "api-catalog");
@@ -288,16 +298,73 @@ r("app-hr", "calls", "svc-hr");
 r("svc-hr", "writes_to", "db-hr");
 r("svc-hr", "integrates_with", "ext-directory", { name: "Directory sync" });
 
-/* ---------- Bare metal ---------- */
+/* ---------- Infrastructure: from a service down to the hardware ----------
+ *
+ * Containment already says where machines physically are (data centre > rack > host > machine).
+ * These relations say what runs on what:
+ *
+ *   service <- deployment_of - deployment - runs_on > cluster - has_node > machine
+ *   database / cache / queue - hosted_on > machine or server
+ *   machine - hosted_on > physical host            (also contained in it)
+ *   environment - hosted_on > data centre
+ *
+ * Every arrow points down the stack, so a trace from a deployment to the hardware follows the
+ * arrows all the way.
+ */
+
+/* Environments are hosted in a data centre. */
 r("env-prod", "hosted_on", "dc-fra1");
-r("k8s-prod", "runs_on", "hw-fra-a12-05", { name: "Worker node placement" });
-r("k8s-prod", "runs_on", "hw-fra-a13-02", { name: "Worker node placement" });
-r("k8s-stg", "runs_on", "hw-fra-a13-02");
+r("env-staging", "hosted_on", "dc-fra1");
+r("env-dr", "hosted_on", "dc-ams1");
+
+/* Clusters and their nodes. */
+r("k8s-prod", "has_node", "vm-k8sp-w1", { name: "Worker node" });
+r("k8s-prod", "has_node", "vm-k8sp-w2", { name: "Worker node" });
+r("k8s-prod", "has_node", "vm-k8sp-w3", { name: "Worker node" });
+r("k8s-stg", "has_node", "vm-k8ss-w1", { name: "Worker node" });
+r("k8s-dr", "has_node", "vm-k8sdr-w1", { name: "Worker node" });
+
+/* Virtual machines on their physical hosts. */
+const placed = (vm: string, host: string) =>
+  r(vm, "hosted_on", host, {
+    name: "Virtual machine placement",
+    description: "Runs as a virtual machine on this physical host.",
+  });
+placed("vm-k8sp-w1", "hw-fra-a12-05");
+placed("vm-redis-cart-01", "hw-fra-a12-05");
+placed("vm-k8sp-w2", "hw-fra-a13-02");
+placed("vm-k8ss-w1", "hw-fra-a13-02");
+placed("vm-k8sp-w3", "hw-fra-a13-04");
+placed("vm-pg-orders-01", "hw-fra-a13-04");
+placed("vm-kafka-01", "hw-fra-a13-04");
+placed("vm-k8sdr-w1", "hw-ams-b03-01");
+
+/* Servers directly on hardware, with no hypervisor. */
 r("srv-mongo-01", "hosted_on", "hw-fra-a12-07", {
   name: "Bare-metal placement",
   description:
     "mongo-prod-01 is a dedicated host: no hypervisor, direct NVMe access for the catalog database.",
 });
+r("srv-mongo-02", "hosted_on", "hw-ams-b03-02", {
+  name: "Bare-metal placement",
+  description:
+    "mongo-prod-02 is a dedicated host in Amsterdam: the replica of the catalog database.",
+});
+r("srv-mongo-01", "replicates_to", "srv-mongo-02", {
+  name: "Replica set replication",
+  description:
+    "The Amsterdam replica keeps a copy of the catalog database for a failover.",
+  props: { mode: "asynchronous", lagTargetSeconds: 5 },
+});
+
+/* Data stores and platform tools on the machines or the cluster that run them. */
+r("cache-cart", "hosted_on", "vm-redis-cart-01");
+r("db-orders", "hosted_on", "vm-pg-orders-01");
+r("q-order-events", "hosted_on", "vm-kafka-01");
+r("obs-prom", "runs_on", "k8s-prod");
+r("obs-grafana", "runs_on", "k8s-prod");
+
+/* Network inside a site and between the two sites. */
 r("hw-fra-a12-05", "connects_to", "net-tor-a12", {
   props: { speed: "25G", port: "Et12" },
 });
@@ -307,8 +374,23 @@ r("hw-fra-a12-07", "connects_to", "net-tor-a12", {
 r("hw-fra-a13-02", "connects_to", "net-tor-a13", {
   props: { speed: "25G", port: "Et03" },
 });
+r("hw-fra-a13-04", "connects_to", "net-tor-a13", {
+  props: { speed: "25G", port: "Et05" },
+});
+r("hw-ams-b03-01", "connects_to", "net-tor-b03", {
+  props: { speed: "25G", port: "Et01" },
+});
+r("hw-ams-b03-02", "connects_to", "net-tor-b03", {
+  props: { speed: "25G", port: "Et02" },
+});
 r("net-tor-a12", "connects_to", "net-core-01", { props: { speed: "100G" } });
 r("net-tor-a13", "connects_to", "net-core-01", { props: { speed: "100G" } });
+r("net-tor-b03", "connects_to", "net-core-02", { props: { speed: "100G" } });
+r("net-core-01", "connects_to", "net-core-02", {
+  name: "Inter-site link",
+  description: "Dedicated link between Frankfurt and Amsterdam.",
+  props: { speed: "10G", latencyMs: 7 },
+});
 r("obs-prom", "monitors", "hw-fra-a12-07", {
   name: "Hardware exporter",
   description: "Node and IPMI exporters on the bare-metal host.",

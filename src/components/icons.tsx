@@ -10,6 +10,7 @@ import {
   Building2,
   Cpu,
   PackageOpen,
+  PictureInPicture2,
   Router,
   Rows3,
   ServerCog,
@@ -56,6 +57,8 @@ const MAP: Record<string, ComponentType<LucideProps>> = {
   globe: Globe,
   boxes: Boxes,
   server: Server,
+  // A window inside a window: a machine running inside a machine.
+  vm: PictureInPicture2,
   activity: Activity,
   dashboard: LayoutDashboard,
   external: ExternalLink,
